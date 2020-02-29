@@ -16,18 +16,20 @@
 
 #include <thread>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/joint_state.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <moveit/moveit_cpp/moveit_cpp.h>
 #include <moveit/moveit_cpp/planning_component.h>
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/msg/display_robot_state.hpp>
-#include <trajectory_msgs/msg/joint_trajectory.hpp>
+
 
 
 class Moveit2Wrapper
 {
 public:
 
-  Moveit2Wrapper(std::string node_name);
+  Moveit2Wrapper(const std::string node_name);
 
   /** 
    * Initializes the wrapper. Initializes the palnning interface, KdlWrapper and sets up the necessary 
@@ -45,36 +47,61 @@ public:
    * @return true if KDL could find a solution to the inverse kinematics, OMPL was able to plan to the goal
    *         and the robot was able to reach the desired configuration.
    */
-  bool pose_to_pose_motion(std::vector<double>& pose, std::string planning_component, bool visualize);
+  bool pose_to_pose_motion(std::vector<double> pose, std::string planning_component, bool visualize=true);
 
   /**
    * Blocking joint state-to-state motion, planning in state-space using OMPL via Moveit2
    * 
-   * @param state 7D-vector, dsired joint configurations
+   * @param state 7D-vector, desired joint configurations
    * @return true if OMPL was able to plan to the goal, and the was able robot to reach desired configuration.
    */
-  bool state_to_state_motion(std::vector<double>& state, std::string planning_component, bool visualize);
+  bool state_to_state_motion(std::vector<double> state, std::string planning_component, bool visualize=true);
+
+  /**
+   * Launches a predfined planning scene representing the enviroment of the robot.
+   */
+  void launch_planning_scene();
+
+  /**
+   * Returns a bool representing whether the planning component has reached its goal.
+   * 
+   * @param planning_component string, chosen planning component
+   * @return true if planning component has reached its previous goal. Return false if it failed its previous goal,
+   * is currently in the process of reaching the goal or is currently moving towards a new goal.
+   */
+  bool goal_reached(std::string planning_component)
+    { return planning_components_hash_.at(planning_component).goal_reached; };
+
+
+  std::shared_ptr<rclcpp::Node> get_node() { return node_; }
   
 private:
 
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
-
-  KdlWrapper kdl;
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
 
   struct PlanningComponentInfo
   {
     std::shared_ptr<moveit::planning_interface::PlanningComponent> planning_component;
     std::shared_ptr<moveit::core::JointModelGroup> joint_group;
-    int num_joints;
+    uint num_joints;
+    std::vector<std::string> joint_names;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_publisher;
+    bool goal_reached;
   };
-  std::map<std::string, PlanningComponentInfo> planning_component_hash_;
 
+  std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
+  std::unordered_map<std::string, double> joint_states_hash_;
+  double safety_margin_;
 
   // Helper functions
-  void populate_hash();
+  void populate_hashs();
   void construct_planning_scene();
   void visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory);
+  void joint_state_callback(sensor_msgs::msg::JointState::UniquePtr);
+  double sum_error(std::vector<double>& goal, std::string& planning_component);
+  void update_joint_state_hash(std::string& planning_component);
+  void block_until_reached(std::vector<double>& goal, std::string& planning_component);
+
 };
