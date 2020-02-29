@@ -55,7 +55,7 @@ public:
    * @param state 7D-vector, desired joint configurations
    * @return true if OMPL was able to plan to the goal, and the was able robot to reach desired configuration.
    */
-  bool state_to_state_motion(std::vector<double> state, std::string planning_component, bool visualize=true);
+  bool state_to_state_motion(std::vector<double> state, std::string planning_component, bool visualize=true, bool retry=false);
 
   /**
    * Launches a predfined planning scene representing the enviroment of the robot.

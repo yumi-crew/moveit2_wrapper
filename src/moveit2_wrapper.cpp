@@ -40,7 +40,7 @@ bool Moveit2Wrapper::init()
   moveit_cpp_ = std::make_shared<moveit::planning_interface::MoveItCpp>(node_);
 
   moveit_cpp_->getPlanningSceneMonitor()->setPlanningScenePublishingFrequency(100);
-  safety_margin_ = 0.04; //2cm
+  safety_margin_ = 0.04; //4cm
 
   std::cout << "before populate_hashs()" << std::endl;
   populate_hashs();
@@ -48,7 +48,7 @@ bool Moveit2Wrapper::init()
 }
 
 
-bool Moveit2Wrapper::state_to_state_motion(std::vector<double> state, std::string planning_component, bool visualize)
+bool Moveit2Wrapper::state_to_state_motion(std::vector<double> state, std::string planning_component, bool visualize, bool retry)
 {
   std::cout << "entering Moveit2Wrapper::state_to_state_motion, planning_component: " << planning_component << std::endl;
   
@@ -70,23 +70,29 @@ bool Moveit2Wrapper::state_to_state_motion(std::vector<double> state, std::strin
   bool ret = planning_components_hash_.at(planning_component).planning_component->setGoal(goal_state);
   if(!ret)
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal");
+    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal for planning component " << planning_component);
     return false;
   }
-
 
   std::cout << "before plan to goal()" << std::endl;
   // Plan solution
   const auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan();
   if (!planned_solution)
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to plan a solution");
-    return false;
+    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to plan a solution for planning component " << planning_component);
+    if(retry) 
+    {
+      RCLCPP_INFO(node_->get_logger(), "Retry is activated. Second attempt initiated.");
+      state_to_state_motion(state, planning_component, visualize, false);
+    }
+    else return false;
   } 
 
-
   std::cout << "before visualize" << std::endl;
-  if(visualize) visualize_trajectory(*planned_solution.trajectory);
+  if(visualize) 
+  {
+    visualize_trajectory(*planned_solution.trajectory);
+  }
 
   // Generate msg and publish trajectory
   moveit_msgs::msg::RobotTrajectory traj_msg;
@@ -219,7 +225,6 @@ void Moveit2Wrapper::construct_planning_scene()
   shape_msgs::msg::SolidPrimitive desk;
   desk.type = desk.BOX;
   desk.dimensions = { 0.75, 0.5, 1.0 };
-  for(double& d : desk.dimensions) d+=safety_margin_;
   geometry_msgs::msg::Pose desk_pose;
   desk_pose.position.x =  0.33 + desk.dimensions[0]/2.0;
   desk_pose.position.y =  0.56 + desk.dimensions[1]/2.0;
@@ -235,10 +240,9 @@ void Moveit2Wrapper::construct_planning_scene()
   shape_msgs::msg::SolidPrimitive desk2;
   desk2.type = desk2.BOX;
   desk2.dimensions = { 0.8, 0.1, 0.75 };
-  for(double& d : desk2.dimensions) d+=safety_margin_;
   geometry_msgs::msg::Pose desk2_pose;
   desk2_pose.position.x =   0.15 - desk2.dimensions[0]/2.0;
-  desk2_pose.position.y = -(0.50 + desk2.dimensions[1]/2.0)-safety_margin_;
+  desk2_pose.position.y = -(0.48 + desk2.dimensions[1]/2.0 - safety_margin_);
   desk2_pose.position.z =  -0.21 + desk2.dimensions[2]/2.0;
   col_obj2.primitives.push_back(desk2);
   col_obj2.primitive_poses.push_back(desk2_pose);
@@ -251,7 +255,6 @@ void Moveit2Wrapper::construct_planning_scene()
   shape_msgs::msg::SolidPrimitive pallet;
   pallet.type = pallet.BOX;
   pallet.dimensions = { 0.85, 0.70, 0.12 };
-  for(double& d : pallet.dimensions) d+=safety_margin_;
   geometry_msgs::msg::Pose pallet_pose;
   pallet_pose.position.x = 0.22 - pallet.dimensions[0]/2.0;
   pallet_pose.position.y = 0.0;
