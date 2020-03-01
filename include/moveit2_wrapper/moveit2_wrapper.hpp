@@ -74,6 +74,9 @@ public:
 
 
   std::shared_ptr<rclcpp::Node> get_node() { return node_; }
+
+
+  bool dual_arm_move(std::vector<double> state, bool visualize=true, bool retry=false);
   
 private:
 
@@ -93,7 +96,9 @@ private:
 
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
+  
   double safety_margin_;
+  std::mutex visualize_mutex_;
 
   // Helper functions
   void populate_hashs();
