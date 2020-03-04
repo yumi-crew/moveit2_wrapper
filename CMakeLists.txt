@@ -12,15 +12,24 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
+find_package(moveit_msgs REQUIRED)
 find_package(rosidl_default_runtime REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
+find_package(orocos_kdl REQUIRED)
+find_package(angles REQUIRED)
+find_package(tf2_eigen REQUIRED)
 
 # moveit2_demo_yumi
 add_library(moveit2_wrapper SHARED src/moveit2_wrapper.cpp)
+target_link_libraries(moveit2_wrapper PRIVATE)
 target_include_directories(moveit2_wrapper PRIVATE include)
 ament_target_dependencies(moveit2_wrapper
                           moveit_ros_planning_interface
+                          moveit_msgs
                           Boost
+                          angles
+                          tf2_eigen
+                                                  
 )
 
 install(DIRECTORY include/ DESTINATION include)
@@ -33,5 +42,5 @@ install(TARGETS moveit2_wrapper
 
 ament_export_libraries(moveit2_wrapper)
 ament_export_include_directories(include)
-ament_export_dependencies(moveit_ros_planning_interface)
+ament_export_dependencies(moveit_ros_planning_interface moveit_msgs)
 ament_package()
