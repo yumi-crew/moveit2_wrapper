@@ -241,20 +241,39 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
 
 
 bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries, 
-                                         bool visualize)
+                                         bool visualize, bool quat)
 {
   std::cout << "entered pose_to_pose_motion()" << std::endl;
-  KDL::Frame frame = pose_to_frame(pose);
   
-  // Pose message
+  // Create pose message
   geometry_msgs::msg::PoseStamped msg;
   msg.header.stamp = std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)->now();
   msg.header.frame_id = moveit_cpp_->getRobotModel()->getModelFrame();
   msg.pose.position.x = pose[0];
   msg.pose.position.y = pose[1];
   msg.pose.position.z = pose[2];
-  frame.M.GetQuaternion(msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w);  
+
+  if(!quat)
+  {
+    KDL::Frame frame = pose_to_frame(pose);
+    frame.M.GetQuaternion(msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w);  
+  }
+  else
+  {
+    msg.pose.orientation.x = pose[3];
+    msg.pose.orientation.y = pose[4];
+    msg.pose.orientation.z = pose[5];
+    msg.pose.orientation.w = pose[6];
+  }
+
   
+  std::cout << "MOVEIT2_WRAPPER" << std::endl;
+  std::cout << msg.pose.orientation.x << std::endl;
+  std::cout << msg.pose.orientation.y << std::endl;
+  std::cout << msg.pose.orientation.z << std::endl;
+  std::cout << msg.pose.orientation.w << std::endl;
+
+
   std::cout << "before setGoal()" << std::endl;
   // Set goal
   if(!planning_components_hash_.at(planning_component).planning_component->setGoal(
@@ -452,20 +471,20 @@ void Moveit2Wrapper::populate_hashs()
 
 void Moveit2Wrapper::construct_planning_scene()
 {
-  // adding tall vertical box
-  moveit_msgs::msg::CollisionObject collision_object;
-  collision_object.header.frame_id = "yumi_base_link"; //reference frame, cannot be yumi_base_link
-  collision_object.id = "box";
-  shape_msgs::msg::SolidPrimitive box;
-  box.type = box.BOX;
-  box.dimensions = { 0.10, 0.10, 1.0 };
-  geometry_msgs::msg::Pose box_pose;
-  box_pose.position.x = 0.28;
-  box_pose.position.y = 0.0;
-  box_pose.position.z = -0.21 + box.dimensions[2]/2.0;
-  collision_object.primitives.push_back(box);
-  collision_object.primitive_poses.push_back(box_pose);
-  collision_object.operation = collision_object.ADD;
+  // // adding tall vertical box
+  // moveit_msgs::msg::CollisionObject collision_object;
+  // collision_object.header.frame_id = "yumi_base_link"; //reference frame, cannot be yumi_base_link
+  // collision_object.id = "box";
+  // shape_msgs::msg::SolidPrimitive box;
+  // box.type = box.BOX;
+  // box.dimensions = { 0.10, 0.10, 1.0 };
+  // geometry_msgs::msg::Pose box_pose;
+  // box_pose.position.x = 0.28;
+  // box_pose.position.y = 0.0;
+  // box_pose.position.z = -0.21 + box.dimensions[2]/2.0;
+  // collision_object.primitives.push_back(box);
+  // collision_object.primitive_poses.push_back(box_pose);
+  // collision_object.operation = collision_object.ADD;
 
   // adding "desk" - box representing Marius' desk.
   moveit_msgs::msg::CollisionObject col_obj;
@@ -515,7 +534,7 @@ void Moveit2Wrapper::construct_planning_scene()
   // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-    scene->processCollisionObjectMsg(collision_object);
+    // scene->processCollisionObjectMsg(collision_object);
     scene->processCollisionObjectMsg(col_obj);
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);

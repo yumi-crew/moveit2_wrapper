@@ -54,7 +54,7 @@ public:
    * @return true if KDL could find a solution to the inverse kinematics, OMPL was able to plan to the goal
    *         and the robot was able to reach the desired configuration.
    */
-  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries=0, bool visualize=true);
+  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries=0, bool visualize=true, bool quat=false);
 
    /** 
    * (ABB YuMi SPECIFIC)
