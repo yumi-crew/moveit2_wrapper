@@ -277,7 +277,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::ve
   std::cout << "before setGoal()" << std::endl;
   // Set goal
   if(!planning_components_hash_.at(planning_component).planning_component->setGoal(
-      msg, planning_components_hash_.at(planning_component).joint_group->getLinkModelNames().back()))
+      msg, "gripper_r_center"))//planning_components_hash_.at(planning_component).joint_group->getLinkModelNames().back()))
   {
     RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal for planning component " << planning_component);
     return false;
@@ -315,7 +315,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::ve
   
   std::cout << "before checking if goal is reached" << std::endl;
   block_until_reached(pose, planning_component, 
-                      planning_components_hash_.at(planning_component).joint_group->getLinkModelNames().back());
+                      "gripper_r_center");//planning_components_hash_.at(planning_component).joint_group->getLinkModelNames().back());
   planning_components_hash_.at(planning_component).goal_reached = true;
   planning_mutex.unlock();
   std::cout << "goal considered reached" << std::endl;
@@ -355,26 +355,35 @@ bool Moveit2Wrapper::dual_arm_pose_to_pose_motion(std::vector<double> pose_left,
   std::cout << "before setGoal()" << std::endl;
 
 
-  // Set goal, right
-  if(!planning_components_hash_.at("both_arms").planning_component->setGoal(
-      msg_right, planning_components_hash_.at("right_arm").joint_group->getLinkModelNames().back()))
-  {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal (right) for planning component " << "both_arms");
-    return false;
-  }
-  // Set goal, left
-  if(!planning_components_hash_.at("both_arms").planning_component->setGoal(
-      msg_left, planning_components_hash_.at("left_arm").joint_group->getLinkModelNames().back()))
+  // // Set goal, right
+  // if(!planning_components_hash_.at("both_arms").planning_component->setGoal(
+  //     msg_right, planning_components_hash_.at("right_arm").joint_group->getLinkModelNames().back()))
+  // {
+  //   RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal (right) for planning component " << "both_arms");
+  //   return false;
+  // }
+  // // Set goal, left
+  // if(!planning_components_hash_.at("both_arms").planning_component->setGoal(
+  //     msg_left, planning_components_hash_.at("left_arm").joint_group->getLinkModelNames().back()))
+  // {
+  //   RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal (left) for planning component " << "both_arms");
+  //   return false;
+  // }
+  moveit_msgs::msg::Constraints constraint_msg_left = kinematic_constraints::constructGoalConstraints(planning_components_hash_.at("left_arm").joint_group->getLinkModelNames().back(),  msg_left);
+  moveit_msgs::msg::Constraints constraint_msg_right = kinematic_constraints::constructGoalConstraints(planning_components_hash_.at("right_arm").joint_group->getLinkModelNames().back(), msg_right);
+  
+  std::vector<moveit_msgs::msg::Constraints> constraints_vec;
+  // FORTSETT HER
+  constraints_vec.push_back(constraint_msg_left);
+  constraints_vec.push_back(constraint_msg_right);
+  
+  
+  std::cout << "ny utgave" << std::endl;
+  if(!planning_components_hash_.at("both_arms").planning_component->setGoal(constraints_vec))
   {
     RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal (left) for planning component " << "both_arms");
     return false;
   }
-
-  auto r = kinematic_constraints::constructGoalConstraints(planning_components_hash_.at("right_arm").joint_group->getLinkModelNames().back(), msg_right);
-  auto l = kinematic_constraints::constructGoalConstraints(planning_components_hash_.at("left_arm").joint_group->getLinkModelNames().back(),  msg_left);
-  moveit_msgs::msg::Constraints msg_c;
-  
-  // FORTSETT HER
 
 
   std::cout << "before plan to goal()" << std::endl;
@@ -418,7 +427,7 @@ void Moveit2Wrapper::launch_planning_scene()
 //----------------------------------------------------------------------------------------------------------------------
 void Moveit2Wrapper::populate_hashs()
 {
-  /* Manual population of the hash table. Should be substituted by automatic loading of config file */
+  /* Manual population of the hash table. Should be substituted by automatic loading of config files */
 
   PlanningComponentInfo right_arm_info;
   right_arm_info.planning_component = std::make_shared<moveit::planning_interface::PlanningComponent>(
@@ -531,6 +540,20 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
 
+  // adding "camer-protection" box
+  moveit_msgs::msg::CollisionObject col_obj4;
+  col_obj4.header.frame_id = "yumi_base_link"; //reference frame, cannot be yumi_base_link
+  col_obj4.id = "camera";
+  shape_msgs::msg::SolidPrimitive camera;
+  camera.type = pallet.BOX;
+  camera.dimensions = { 0.40, 0.30, 0.20 };
+  geometry_msgs::msg::Pose camera_pose;
+  camera_pose.position.x = 0.10;
+  camera_pose.position.y = 0.0;
+  camera_pose.position.z = 0.70;
+  col_obj4.primitives.push_back(camera);
+  col_obj4.primitive_poses.push_back(camera_pose);
+  col_obj4.operation = col_obj4.ADD;
   // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
@@ -538,6 +561,7 @@ void Moveit2Wrapper::construct_planning_scene()
     scene->processCollisionObjectMsg(col_obj);
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);
+    scene->processCollisionObjectMsg(col_obj4);
   }  // Unlock PlanningScene
 }
 
