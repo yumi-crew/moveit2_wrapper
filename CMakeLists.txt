@@ -19,7 +19,7 @@ find_package(orocos_kdl REQUIRED)
 find_package(angles REQUIRED)
 find_package(tf2_eigen REQUIRED)
 
-# moveit2_demo_yumi
+# moveit2_wrapper
 add_library(moveit2_wrapper SHARED src/moveit2_wrapper.cpp)
 target_link_libraries(moveit2_wrapper PRIVATE)
 target_include_directories(moveit2_wrapper PRIVATE include)
