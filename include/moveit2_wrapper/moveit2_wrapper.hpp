@@ -19,6 +19,7 @@
 #include <angles/angles.h>
 #include <kdl/frames_io.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <moveit/moveit_cpp/moveit_cpp.h>
 #include <moveit/moveit_cpp/planning_component.h>
@@ -29,76 +30,73 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <moveit/kinematic_constraints/utils.h>
 
-
+namespace moveit2_wrapper
+{
 
 class Moveit2Wrapper
 {
 public:
-
   Moveit2Wrapper(const std::string node_name);
 
   /** 
-   * Initializes the wrapper: initializes the planning interface, KdlWrapper and sets up the necessary 
-   * publishers and subscriptions.
+   * Initializes the wrapper: initializes the planning interface and sets up the necessary publishers and subscriptions.
    * 
-   * @return true if the initialization is succesfull.
+   * @return true if the initialization is succesfull. False indicate failure.
    */
   bool init();
 
   /**
-   * Blocking end-effector pose-to-pose motion using KDL NR inverse solver with joint limits to find 
-   * the joint configuration giving the desired pose, and planning in state space using OMPL via Moveit2.
+   * End-effector pose-to-pose motion of a joint group.
    * 
-   * @param pose 6D-vector, desired end-effector pose.
+   * @param pose 6D-vector, desired end-effector pose. [ZYX-Euler angles or quaternions]
    * @param retries number of allowed attempts at planning a trajectory.
-   * @return true if KDL could find a solution to the inverse kinematics, OMPL was able to plan to the goal
-   *         and the robot was able to reach the desired configuration.
+   * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
+   *                  Visualization only available for blocking motion.
+   * @param quat flag indicating if quaternions are used to represent orientation.
+   * @param blocking flag indicating if the function call should be blocking.
+   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired pose.
    */
-  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries=0, bool visualize=true, bool quat=false);
-
-   /** 
-   * (ABB YuMi SPECIFIC)
-   * Blocking, concurrent dual arm state-to-state motion of both arms of the YuMi.
-   * 
-   * @param retries number of allowed attempts at planning a trajectory.
-   * 
-   */
-  bool dual_arm_pose_to_pose_motion(std::vector<double> pose_left, std::vector<double> pose_right, int retries=0, 
-                                    bool visualize=true);
+  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries=0, bool visualize=true, 
+                           bool quat=false, bool blocking=true);
 
   /**
-   * Blocking joint state-to-state motion, planning in state-space using OMPL via Moveit2
+   * State-to-state motion of a joint group.
    * 
-   * @param state 7D-vector, desired joint configuration.
+   * @param state 7D-vector, desired joint configuration. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
-   * @return true if OMPL was able to plan to the goal, and the was able robot to reach desired configuration.
+   * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
+   *                  Visualization only available for blocking motion.
+   * @param blocking flag indicating if the function call should be blocking.
+   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired 
+   *         configuration.
    */
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
-                            bool visualize=true);
+                            bool visualize=true, bool blocking=true);
 
-   /** 
-   * (ABB YuMi SPECIFIC)
-   * Blocking, concurrent dual arm state-to-state motion of both arms of the YuMi.
+
+  /** 
+   * Hardcoded dual arm state-to-state motion for the ABB YuMi.
    * 
-   * @param state_left 7D-vector, desired joint configuration of the left arm.
-   * @param state_right 7D-vector, desired joint configuration of the right arm.
+   * @param state_left 7D-vector, desired joint configuration of the left arm. [radians]
+   * @param state_right 7D-vector, desired joint configuration of the riht arm. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
+   * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
+   * @param blocking flag indicating if the function call should be blocking.
+   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired 
+   *         configuration.
    */
   bool dual_arm_state_to_state_motion(std::vector<double> state_left, std::vector<double> state_right, int retries=0, 
-                                      bool visualize=true);
+                                      bool visualize=true, bool blocking=true);
 
-  /**
-   * Launches the predfined planning scene representing the enviroment of the robot.
-   */
+
   void launch_planning_scene();
-
-
   std::shared_ptr<rclcpp::Node> get_node() { return node_; }
   
-private:
-
+protected:
+  std::string node_name_;
   rclcpp::Node::SharedPtr node_;
   rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscription_;
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
 
   struct PlanningComponentInfo
@@ -109,15 +107,15 @@ private:
     std::vector<std::string> joint_names;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_publisher;
     bool goal_reached;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_signal_publisher;
   };
 
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
   
-  double safety_margin_;
-  std::mutex planning_mutex;
+  double safety_margin_ = 0.04; //4cm
+  bool robot_ready_ = false;
 
-  // Helper function
   void populate_hashs();
   void construct_planning_scene();
   void visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory);
@@ -137,4 +135,8 @@ private:
      Position given in meters */
   std::vector<double> find_pose(std::string link_name);
 
+  void joint_state_callback(sensor_msgs::msg::JointState::UniquePtr msg);
+  void stop_planning_component(std::string planning_component);
 };
+
+} // namespace moveit2_wrapper

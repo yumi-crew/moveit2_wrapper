@@ -31,6 +31,11 @@ ament_target_dependencies(moveit2_wrapper
                           tf2_eigen
                                                   
 )
+# Causes the visibility macros to use dllexport rather than dllimport, which is
+# appropriate when building the dll but not consuming it.
+target_compile_definitions(moveit2_wrapper PRIVATE
+                           "MOVEIT2_WRAPPER_BUILDING_DLL")
+
 
 install(DIRECTORY include/ DESTINATION include)
 
