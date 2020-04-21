@@ -30,16 +30,28 @@ ament_target_dependencies(moveit2_wrapper
                           angles
                           tf2_eigen                                                 
 )
+# table_monitor
+add_library(table_monitor SHARED src/table_monitor.cpp)
+target_link_libraries(table_monitor PRIVATE)
+target_include_directories(table_monitor PRIVATE include)
+ament_target_dependencies(table_monitor
+                          moveit_ros_planning_interface
+                          moveit_msgs
+                          Boost
+                          angles
+                          tf2_eigen                                                 
+)
 
 install(DIRECTORY include/ DESTINATION include)
 
 install(TARGETS moveit2_wrapper 
+                table_monitor
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
 )
 
-ament_export_libraries(moveit2_wrapper)
+ament_export_libraries(moveit2_wrapper table_monitor)
 ament_export_include_directories(include)
 ament_export_dependencies(moveit_ros_planning_interface moveit_msgs)
 ament_package()

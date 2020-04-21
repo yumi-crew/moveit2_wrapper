@@ -36,7 +36,7 @@ namespace moveit2_wrapper
 class Moveit2Wrapper
 {
 public:
-  Moveit2Wrapper(const std::string node_name);
+  Moveit2Wrapper(std::shared_ptr<rclcpp::Node> node);
 
   /** 
    * Initializes the wrapper: initializes the planning interface and sets up the necessary publishers and subscriptions.
@@ -46,18 +46,19 @@ public:
   bool init();
 
   /**
-   * End-effector pose-to-pose motion of a joint group.
+   *  Pose-to-pose motion of a joint group. The last link of the joint group is moved to the pose.
    * 
-   * @param pose 6D-vector, desired end-effector pose. [ZYX-Euler angles or quaternions]
+   * @param pose desired pose. [quaternions]
+   * @param eulerzyx flag indicating if ZYX-Euler angles are used instead for quaternions.
    * @param retries number of allowed attempts at planning a trajectory.
    * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
-   *                  Visualization only available for blocking motion.
-   * @param quat flag indicating if quaternions are used to represent orientation.
+   *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
-   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired pose.
+   * 
+   * @return true if the planner was able to plan to the goal.
    */
-  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, int retries=0, bool visualize=true, 
-                           bool quat=false, bool blocking=true);
+  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, bool eulerzyx=false, 
+                           int retries=0, bool visualize=true, bool blocking=true);
 
   /**
    * State-to-state motion of a joint group.
@@ -65,10 +66,10 @@ public:
    * @param state 7D-vector, desired joint configuration. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
    * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
-   *                  Visualization only available for blocking motion.
+   *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
-   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired 
-   *         configuration.
+   * 
+   * @return true if the planner was able to plan to the goal.
    */
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
                             bool visualize=true, bool blocking=true);
@@ -81,24 +82,26 @@ public:
    * @param state_right 7D-vector, desired joint configuration of the riht arm. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
    * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
+   *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
-   * @return true if the planner was able to plan to the goal, and the joint group was able to reach the desired 
-   *         configuration.
+   * 
+   * @return true if the planner was able to plan to the goal.
    */
   bool dual_arm_state_to_state_motion(std::vector<double> state_left, std::vector<double> state_right, int retries=0, 
                                       bool visualize=true, bool blocking=true);
 
-
+  /* Launches the planning scene. */
   void launch_planning_scene();
-  std::shared_ptr<rclcpp::Node> get_node() { return node_; }
-  
-protected:
-  std::string node_name_;
-  rclcpp::Node::SharedPtr node_;
-  rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
-  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_subscription_;
-  moveit::planning_interface::MoveItCppPtr moveit_cpp_;
 
+  /* Determines if a given pose is reached by the planning_component. */
+  bool is_pose_reached(std::string planning_component, std::vector<double> goal_pose, bool eulerzyx);
+
+  /* Moves an existing collision object to a new position. */
+  void move_collison_object(std::string object_id, std::vector<double> new_pos);
+
+  /* Updates the planning_scene. */
+  void update_scene();
+  
   struct PlanningComponentInfo
   {
     std::shared_ptr<moveit::planning_interface::PlanningComponent> planning_component;
@@ -106,37 +109,46 @@ protected:
     uint num_joints;
     std::vector<std::string> joint_names;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_publisher;
-    bool goal_reached;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_signal_publisher;
+    bool in_motion;
+    bool should_replan;
   };
+  
+  std::unordered_map<std::string, PlanningComponentInfo>* get_planning_components_hash()
+    { return &planning_components_hash_; };
+
+
+private:
+  std::shared_ptr<rclcpp::Node> node_;
+  rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
+  moveit::planning_interface::MoveItCppPtr moveit_cpp_;
 
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
   
-  double safety_margin_ = 0.04; //4cm
-  bool robot_ready_ = false;
+  double safety_margin_ = 0.04; // 4 cm
+  double allowed_pos_error_ = 0.002; // 2 mm
+  double allowed_or_errror_ = 0.02; // summed quaternion error
+  double allowed_state_error_ = 0.001; // summed joint state error
 
   void populate_hashs();
   void construct_planning_scene();
   void visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory);
   void update_joint_state_hash(std::string& planning_component);
+  void joint_state_callback(sensor_msgs::msg::JointState::UniquePtr msg);
 
-  double sum_error(std::vector<double>& goal, std::string& planning_component);
+  double sum_error(std::vector<double>& goal_state, std::string& planning_component);
   std::vector<double> sum_error(std::vector<double>& goal_pose, std::vector<double>& curr_pose);
 
-  void block_until_reached(std::vector<double>& goal, std::string planning_component);
-  void block_until_reached(std::vector<double>& pose, std::string planning_component, std::string link_name);
+  void block_until_reached(std::vector<double>& goal_state, std::string planning_component);
+  void block_until_reached(std::vector<double>& goal_pose, std::string planning_component, std::string link_name);
 
-  /* Converts a 6D pose vector {x,y,z, E(Z), E(Y), E(X)} into a Frame object. 
-     Position given in meters, euler angles in degrees */
-  KDL::Frame pose_to_frame(std::vector<double>& pose);
-
-  /* Gives the pose of a desired link as a 7D pose vector {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} 
-     Position given in meters */
+  /* Gives the pose of a desired link. [position given in meters, orientation in quaternions]
+     {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
   std::vector<double> find_pose(std::string link_name);
 
-  void joint_state_callback(sensor_msgs::msg::JointState::UniquePtr msg);
-  void stop_planning_component(std::string planning_component);
+  /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
+  std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
 };
 
 } // namespace moveit2_wrapper
