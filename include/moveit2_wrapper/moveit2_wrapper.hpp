@@ -26,9 +26,11 @@
 #include <moveit/robot_state/conversions.h>
 #include <moveit_msgs/msg/display_robot_state.hpp>
 #include <moveit_msgs/msg/constraints.hpp>
+#include <moveit_msgs/msg/robot_trajectory.hpp>
 #include <moveit/moveit_cpp/planning_component.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <moveit/kinematic_constraints/utils.h>
+#include <moveit/trajectory_processing/iterative_spline_parameterization.h>
 
 namespace moveit2_wrapper
 {
@@ -46,33 +48,58 @@ public:
   bool init();
 
   /**
-   *  Pose-to-pose motion of a joint group. The last link of the joint group is moved to the pose.
+   * Pose-to-pose motion of a planning component. 
    * 
+   * @param link the link to be moved to the desired pose.
    * @param pose desired pose. [quaternions]
-   * @param eulerzyx flag indicating if ZYX-Euler angles are used instead for quaternions.
+   * @param eulerzyx flag indicating whether ZYX-Euler angles [degrees] are used instead of quaternions.
    * @param retries number of allowed attempts at planning a trajectory.
    * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
    *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
+   * @param speed_scale scaling factor used to scale the velocity of the trajectory.
+   * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
    * 
    * @return true if the planner was able to plan to the goal.
    */
-  bool pose_to_pose_motion(std::string planning_component, std::vector<double> pose, bool eulerzyx=false, 
-                           int retries=0, bool visualize=true, bool blocking=true);
+  bool pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
+                           bool eulerzyx=false, int retries=0, bool visualize=true, bool blocking=true, 
+                           double speed_scale=1, double acc_scale=1);
 
   /**
-   * State-to-state motion of a joint group.
+   * Cartesian straight-line pose-to-pose motion of a planning component. 
+   * 
+   * @param link the link to be moved to the desired pose. Link must be the last link of a registered joint group.
+   * @param pose desired pose. [quaternions]
+   * @param eulerzyx flag indicating whether ZYX-Euler angles [degrees] are used instead of quaternions.
+   * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
+   *                  Visualization is only available when no other planning_component is in motion.
+   * @param blocking flag indicating if the function call should be blocking.
+   * @param min_percentage the required 'linearity' or 'straightness' of the motion.
+   * @param speed_scale scaling factor used to scale the velocity of the trajectory.
+   * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
+   * 
+   * @return true if the planner was able to plan to the goal.
+   */
+  bool cartesian_pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
+                                     bool eulerzyx=false, bool visualize=true, bool blocking=true, 
+                                     double min_percentage=1, double speed_scale=1, double acc_scale=1);
+
+  /**
+   * State-to-state motion of a planning component. 
    * 
    * @param state 7D-vector, desired joint configuration. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
    * @param visualize flag indicating whether the generated trajectory should be visualized before execution.
    *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
+   * @param speed_scale scaling factor used to scale the velocity of the trajectory.
+   * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
    * 
    * @return true if the planner was able to plan to the goal.
    */
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
-                            bool visualize=true, bool blocking=true);
+                            bool visualize=true, bool blocking=true, double speed_scale=1, double acc_scale=1);
 
 
   /** 
@@ -93,8 +120,16 @@ public:
   /* Launches the planning scene. */
   void launch_planning_scene();
 
-  /* Determines if a given pose is reached by the planning_component. */
-  bool is_pose_reached(std::string planning_component, std::vector<double> goal_pose, bool eulerzyx);
+  /** 
+   * Determines if a given pose is reached by a link of the planning_component. 
+   * 
+   * @param link link to reach pose.
+   * @param eulerzyx flag indicating if goal_pose is given in ZYX-Euler angles [degrees] instead of quaternions.
+   */
+  bool pose_reached(std::string planning_component, std::string link, std::vector<double> goal_pose, bool eulerzyx);
+
+  /* Determines if a given state is reached by the planning component. */
+  bool state_reached(std::string planning_component, std::vector<double> goal_state);
 
   /* Moves an existing collision object to a new position. */
   void move_collison_object(std::string object_id, std::vector<double> new_pos);
@@ -112,10 +147,15 @@ public:
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_signal_publisher;
     bool in_motion;
     bool should_replan;
+    std::string ee_link;
+    std::vector<double> home_configuration;
+    std::unordered_map<std::string, std::shared_ptr<moveit::core::JointModelGroup>> secondary_joint_groups;
   };
   
   std::unordered_map<std::string, PlanningComponentInfo>* get_planning_components_hash()
     { return &planning_components_hash_; };
+
+  moveit::planning_interface::MoveItCppPtr get_moveit_cpp(){ return moveit_cpp_; };
 
 
 private:
@@ -130,6 +170,10 @@ private:
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.02; // summed quaternion error
   double allowed_state_error_ = 0.001; // summed joint state error
+  double maximum_planning_time_ = 5.0;
+  double cartesian_max_step_ = 0.002;
+  double joint_threshold_factor_ = 2;
+  std::string planning_pipeline_ = "ompl";
 
   void populate_hashs();
   void construct_planning_scene();
@@ -149,6 +193,22 @@ private:
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
+
+  /** 
+   * Returns the pose given by a vector as a pose msg.
+   * 
+   * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
+   *                  instead of quaternions.
+   */
+  geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
+
+  /* Returns the pose given by a pose message as a 7D vector. [position given in meters, orientation in quaternions] */
+  std::vector<double> pose_msg_to_vec(geometry_msgs::msg::PoseStamped msg);
+
+  /* Timeparameterizes a path by computing timestamps using iterative spline interpolation. Returns the trajectory. */
+  robot_trajectory::RobotTrajectory time_parameterize_path(std::vector<moveit::core::RobotStatePtr> path, 
+                                                           std::string planning_component, double speed_scale,
+                                                           double acc_scale);
 };
 
 } // namespace moveit2_wrapper
