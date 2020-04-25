@@ -29,13 +29,14 @@ bool Moveit2Wrapper::init()
   // Using the moveit_cpp API
   moveit_cpp_ = std::make_shared<moveit::planning_interface::MoveItCpp>(node_);
   moveit_cpp_->getPlanningSceneMonitor()->setPlanningScenePublishingFrequency(100);
-  populate_hashs();
+  populate_hash_tables();
   return true;
 }
 
 
 bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::vector<double> state, int retries, 
-                                           bool visualize, bool blocking, double speed_scale, double acc_scale)
+                                           bool visualize, bool vis_abortable, bool blocking, double speed_scale, 
+                                           double acc_scale)
 {
   //std::cout << "state_to_state_motion() called for planning_component '" << planning_component << "'" << std::endl;
 
@@ -95,7 +96,8 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
                           [](auto hash)->bool{ return hash.second.in_motion; });
     if(it == planning_components_hash_.end())
     { 
-      visualize_trajectory(*planned_solution.trajectory); 
+      // Abort motion if visualization is aborted.
+      if(!visualize_trajectory(*planned_solution.trajectory, planning_component, vis_abortable)) return false;
     }
     else 
     { 
@@ -122,7 +124,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
 
 bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::string link, 
                                          std::vector<double> pose, bool eulerzyx, int retries, bool visualize, 
-                                         bool blocking, double speed_scale, double acc_scale)
+                                         bool vis_abortable, bool blocking, double speed_scale, double acc_scale)
 {
   //std::cout << "pose_to_pose_motion() called for planning_component '" << planning_component << "'" << std::endl;
 
@@ -167,7 +169,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
     return false;
   }
 
-  // set planning parameteres.
+  // Set planning parameteres.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
   plannning_params.planning_attempts = retries;
   plannning_params.planning_time = maximum_planning_time_;
@@ -202,7 +204,8 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
                           [](auto hash)->bool{ return hash.second.in_motion; });
     if(it == planning_components_hash_.end())
     { 
-      visualize_trajectory(*planned_solution.trajectory); 
+      // Abort motion if visualization is aborted.
+      if(!visualize_trajectory(*planned_solution.trajectory, planning_component, vis_abortable)) return false; 
     }
     else 
     { 
@@ -228,8 +231,9 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
 
 
 bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_component, std::string link, 
-                                                   std::vector<double> pose, bool eulerzyx,bool visualize,bool blocking, 
-                                                   double speed_scale, double acc_scale, double min_percentage)
+                                                   std::vector<double> pose, bool eulerzyx, bool visualize,
+                                                   bool vis_abortable, bool blocking, double speed_scale, 
+                                                   double acc_scale, double min_percentage)
 {
   //std::cout << "cartesian_pose_to_pose_motion() called for link '" << link << "'" << std::endl;
   
@@ -290,7 +294,8 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
                           [](auto hash)->bool{ return hash.second.in_motion; });
     if(it == planning_components_hash_.end())
     { 
-      visualize_trajectory(robot_traj); 
+      // Abort motion if visualization is aborted.
+      if(!visualize_trajectory(robot_traj, planning_component, vis_abortable)) return false;
     }
     else 
     { 
@@ -366,7 +371,7 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
     } 
   } 
 
-  if(visualize) { visualize_trajectory(*planned_solution.trajectory); }
+  if(visualize) { visualize_trajectory(*planned_solution.trajectory, "both_arms", false); }
 
   // Generate msg 
   moveit_msgs::msg::RobotTrajectory traj_msg, traj_msg_left, traj_msg_right;
@@ -436,10 +441,11 @@ void Moveit2Wrapper::launch_planning_scene()
   construct_planning_scene();
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
+  sleep(1);
 }
 
 
-void Moveit2Wrapper::populate_hashs()
+void Moveit2Wrapper::populate_hash_tables()
 {
   /* Manual population of the hash table. Should be substituted by automatic loading of config files */
 
@@ -510,7 +516,8 @@ void Moveit2Wrapper::populate_hashs()
 
 void Moveit2Wrapper::construct_planning_scene()
 {
-  std::cout << "construct_planning_scene()" << std::endl;
+  /* Manual loading of model of the robots enviroment. */
+
   // Adding "desk_marius" - box representing Marius' desk.
   moveit_msgs::msg::CollisionObject col_obj;
   col_obj.header.frame_id = "yumi_base_link"; 
@@ -571,21 +578,6 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj4.primitive_poses.push_back(camera_pose);
   col_obj4.operation = col_obj4.ADD;
 
-  // Adding "bin" - box representing the bin.
-  moveit_msgs::msg::CollisionObject col_obj5;
-  col_obj5.header.frame_id = "yumi_base_link"; 
-  col_obj5.id = "bin";
-  shape_msgs::msg::SolidPrimitive bin;
-  bin.type = bin.BOX;
-  bin.dimensions = { 0.20, 0.20, 0.20 };
-  geometry_msgs::msg::Pose bin_pose;
-  bin_pose.position.x = 0.30 + bin.dimensions[0]/2.0;
-  bin_pose.position.y = 0.0;
-  bin_pose.position.z = pallet_pose.position.z-pallet.dimensions[2]/2.0 + bin.dimensions[2]/2.0;
-  col_obj5.primitives.push_back(bin);
-  col_obj5.primitive_poses.push_back(bin_pose);
-  col_obj5.operation = col_obj5.ADD;
-
   // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
@@ -593,7 +585,6 @@ void Moveit2Wrapper::construct_planning_scene()
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);
     scene->processCollisionObjectMsg(col_obj4);
-    scene->processCollisionObjectMsg(col_obj5);
   }  // Unlock PlanningScene (scopekill)
 }
 
@@ -681,7 +672,8 @@ std::vector<double> Moveit2Wrapper::find_pose(std::string link_name)
 }
 
 
-void Moveit2Wrapper::visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory)
+bool Moveit2Wrapper::visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory, 
+                                          std::string planning_component, bool abortable)
 {
   moveit_msgs::msg::DisplayRobotState waypoint;
   const auto start_time = node_->now();
@@ -693,14 +685,20 @@ void Moveit2Wrapper::visualize_trajectory(const robot_trajectory::RobotTrajector
     const auto waypoint_time = start_time + rclcpp::Duration::from_seconds(trajectory.getWayPointDurationFromStart(i));
     const auto now = node_->now();
 
-    // to ensure a timeapporpiate visualization of the waypoints
+    // to ensure a time-appropriate visualization of the waypoints
     if (waypoint_time > now)
     {
       rclcpp::sleep_for(std::chrono::nanoseconds((waypoint_time - now).nanoseconds()));
     }
     // publish the DisplayRobotState msg
     robot_state_publisher_->publish(waypoint);
+
+    if(abortable && planning_components_hash_.at(planning_component).should_replan)
+    {
+      return false;
+    }
   }
+  return true;
 }
 
 
@@ -741,34 +739,6 @@ std::vector<double> Moveit2Wrapper::eulerzyx_to_quat(std::vector<double> orien)
                                                angles::from_degrees(orien[2]));
   rot.GetQuaternion(q_orien[0], q_orien[1], q_orien[2], q_orien[3]);
   return q_orien;
-}
-
-
-void Moveit2Wrapper::move_collison_object(std::string object_id, std::vector<double> new_pos)
-{
-  moveit_msgs::msg::CollisionObject col_obj;
-  col_obj.header.frame_id = "yumi_base_link"; 
-  col_obj.id = object_id;
-  geometry_msgs::msg::Pose new_pose;
-  new_pose.position.x = new_pos[0];
-  new_pose.position.y = new_pos[1];
-  new_pose.position.z = new_pos[2];
-  col_obj.primitive_poses.push_back(new_pose);
-  col_obj.operation = col_obj.MOVE;
-
-  {  // Locks PlanningScene
-    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-    scene->processCollisionObjectMsg(col_obj);
-  }  // Unlocks PlanningScene
-  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-      planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
-}
-
-
-void Moveit2Wrapper::update_scene()
-{
-  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
 }
 
 

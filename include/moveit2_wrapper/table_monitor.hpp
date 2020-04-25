@@ -25,28 +25,78 @@ class TableMonitor
 public:
   TableMonitor(moveit::planning_interface::MoveItCppPtr moveit_cpp);
 
+  /* Fills the hash table. */ 
   bool init();
 
+  /* Adds the registered objects to the planning scene. */
+  bool activate();
+
+  /* Returns the pose of a registered object. */
   std::vector<double> find_object(std::string object_id);
+
+  /* Moves a registered object to the given pose. */
+  void move_object(std::string object_id, std::vector<double> pose);
+
+  /* Removes a object from the planning scene. */
+  void remove_object_from_scene(std::string object_id, bool update_scene);
+
+  /* Returns the dimensions of a registered solid primitive. */
+  std::vector<double> get_object_dimensions(std::string object_id);
 
 private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
+  std::string reference_frame_ = "yumi_base_link";
+
+  enum SolidPrimitiveType
+  {
+    BOX=1,
+    SPHERE=2,
+    CYLINDER=3,
+    CONE=4
+  };
 
   enum ObjectType
   {
-    COLLISION_OBJECT = 1
+    SOLID_PRIMITIVE = 1,
+    MESH = 2
+  };
+
+  struct SolidPrimitiveData
+  {
+    std::string id;
+    std::vector<double> dimensions;
+    SolidPrimitiveType type;
+  };
+
+  struct Mesh
+  {
+    std::string id;
   };
 
   struct ObjectData
   {
     std::string id;
+    bool collision_object;
     ObjectType type;
     std::vector<double> last_observed_pose;
-    double hover_height;
   };
-  std::unordered_map<std::string, ObjectData> objects_hash_;
 
+  std::unordered_map<std::string, ObjectData> objects_hash_;
+  std::unordered_map<std::string, SolidPrimitiveData> registered_solid_primitives_;
+  std::unordered_map<std::string, Mesh> registered_meshs_;
+
+  void populate_hash_tables();
+  void update_pose_of_all_objects();
+  void update_planning_scene();
+
+  /* Adds a collision object to the hash table and the planning scene. */
+  void add_primitive_object_to_scene(std::string object_id, std::vector<double> pose, bool update_scene);
+
+  /* Returns the pose of a registered collision object. */
   std::vector<double> find_collision_object(std::string object_id);
+
+  /* Moves a registered collision object to a new position. */
+  void move_collision_object(std::string object_id, std::vector<double> new_pose, bool update_scene);
 };
 
 } // namespace moveit2_wrapper

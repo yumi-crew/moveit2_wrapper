@@ -15,7 +15,6 @@ find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(rosidl_default_runtime REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
-find_package(orocos_kdl REQUIRED)
 find_package(angles REQUIRED)
 find_package(tf2_eigen REQUIRED)
 

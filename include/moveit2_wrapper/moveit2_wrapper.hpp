@@ -63,8 +63,8 @@ public:
    * @return true if the planner was able to plan to the goal.
    */
   bool pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
-                           bool eulerzyx=false, int retries=0, bool visualize=true, bool blocking=true, 
-                           double speed_scale=1, double acc_scale=1);
+                           bool eulerzyx=false, int retries=0, bool visualize=true, bool vis_abortable=false, 
+                           bool blocking=true, double speed_scale=1, double acc_scale=1);
 
   /**
    * Cartesian straight-line pose-to-pose motion of a planning component. 
@@ -82,8 +82,9 @@ public:
    * @return true if the planner was able to plan to the goal.
    */
   bool cartesian_pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
-                                     bool eulerzyx=false, bool visualize=true, bool blocking=true, 
-                                     double min_percentage=1, double speed_scale=1, double acc_scale=1);
+                                     bool eulerzyx=false, bool visualize=true, bool vis_abortable=false,  
+                                     bool blocking=true, double min_percentage=1, double speed_scale=1, 
+                                     double acc_scale=1);
 
   /**
    * State-to-state motion of a planning component. 
@@ -99,7 +100,8 @@ public:
    * @return true if the planner was able to plan to the goal.
    */
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
-                            bool visualize=true, bool blocking=true, double speed_scale=1, double acc_scale=1);
+                            bool visualize=true, bool vis_abortable=false, bool blocking=true, double speed_scale=1, 
+                            double acc_scale=1);
 
 
   /** 
@@ -117,7 +119,7 @@ public:
   bool dual_arm_state_to_state_motion(std::vector<double> state_left, std::vector<double> state_right, int retries=0, 
                                       bool visualize=true, bool blocking=true);
 
-  /* Launches the planning scene. */
+  /* Launches the initial planning scene representing the enviroment around the robot.  */
   void launch_planning_scene();
 
   /** 
@@ -131,11 +133,6 @@ public:
   /* Determines if a given state is reached by the planning component. */
   bool state_reached(std::string planning_component, std::vector<double> goal_state);
 
-  /* Moves an existing collision object to a new position. */
-  void move_collison_object(std::string object_id, std::vector<double> new_pos);
-
-  /* Updates the planning_scene. */
-  void update_scene();
   
   struct PlanningComponentInfo
   {
@@ -175,9 +172,8 @@ private:
   double joint_threshold_factor_ = 2;
   std::string planning_pipeline_ = "ompl";
 
-  void populate_hashs();
+  void populate_hash_tables();
   void construct_planning_scene();
-  void visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory);
   void update_joint_state_hash(std::string& planning_component);
   void joint_state_callback(sensor_msgs::msg::JointState::UniquePtr msg);
 
@@ -186,6 +182,14 @@ private:
 
   void block_until_reached(std::vector<double>& goal_state, std::string planning_component);
   void block_until_reached(std::vector<double>& goal_pose, std::string planning_component, std::string link_name);
+
+  /**
+   * Visualizes a computed trajectory. Return true if the visualization was allowed to compelete, false if not.
+   * 
+   * @param abortable flag indicating if the visualization is allowed to be aborted.  
+   */
+  bool visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory, std::string planning_component, 
+                            bool abortable);
 
   /* Gives the pose of a desired link. [position given in meters, orientation in quaternions]
      {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
@@ -198,7 +202,7 @@ private:
    * Returns the pose given by a vector as a pose msg.
    * 
    * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
-   *                  instead of quaternions.
+   *                 instead of quaternions.
    */
   geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
 
