@@ -32,20 +32,22 @@ bool TableMonitor::init()
 
 bool TableMonitor::activate()
 {
-  // Add all objects to the planning scene. 
+  // Add all objects with known location to the planning scene. 
   for(auto object : objects_hash_)
   {
-    if(object.second.type == ObjectType::SOLID_PRIMITIVE)
-    { 
-      add_primitive_object_to_scene(object.second.id, object.second.last_observed_pose, false);
-    }
-    else if(object.second.type == ObjectType::MESH)
+    if(!object.second.last_observed_pose.empty())
     {
-      std::cout << "not implemented" << std::endl;
+      if(object.second.type == ObjectType::SOLID_PRIMITIVE)
+      { 
+        add_primitive_object_to_scene(object.second.id, object.second.last_observed_pose, false); 
+      }
+      else if(object.second.type == ObjectType::MESH)
+      {
+        add_mesh_to_scene(object.second.id, object.second.last_observed_pose, false);
+      }
     }
   }
   update_planning_scene();
-  update_pose_of_all_objects();
   return true;
 }
 
@@ -58,7 +60,7 @@ std::vector<double> TableMonitor::find_object(std::string object_id)
   }
   else
   {
-    std::cout << "not implemented" << std::endl;
+    std::cout << "not yet implemented" << std::endl;
     return {};
   }
 }
@@ -69,6 +71,10 @@ void TableMonitor::move_object(std::string object_id, std::vector<double> pose)
   if(objects_hash_.at(object_id).collision_object)
   {
     move_collision_object(object_id, pose, true);
+  }
+  else
+  {
+    std::cout << "not yet implemented" << std::endl;
   }
 }
 
@@ -86,7 +92,7 @@ std::vector<double> TableMonitor::find_collision_object(std::string object_id)
     }
     else 
     {
-      std::cout <<  "Planning scene do not know the frame transform associated with the object." << std::endl;
+      std::cout << "Planning scene do not know the frame transform associated with the object." << std::endl;
       return {};
     }
   }  // Unlock PlanningScene (scopekill)
@@ -124,10 +130,10 @@ void TableMonitor::move_collision_object(std::string object_id, std::vector<doub
   obj_msg.primitive_poses.push_back(pose_msg);
   obj_msg.operation = obj_msg.MOVE;
 
-  {  // Locks PlanningScene
+  {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->processCollisionObjectMsg(obj_msg);
-  }  // Unlocks PlanningScene
+  }  // Unlock PlanningScene (scopekill)
 
   if(update_scene) update_planning_scene();
 }
@@ -141,15 +147,26 @@ void TableMonitor::populate_hash_tables()
   bin_data.id = "bin";
   bin_data.collision_object = true;
   bin_data.type = ObjectType::SOLID_PRIMITIVE;
-  bin_data.last_observed_pose = {0.40, 0.0, -0.11};
+  bin_data.last_observed_pose = {};
 
   SolidPrimitiveData bin;
   bin.id = "bin";
   bin.dimensions = {0.20, 0.20, 0.20};
   bin.type = SolidPrimitiveType::BOX;
 
+  ObjectData screwdriver_data;
+  screwdriver_data.id = "screwdriver";
+  screwdriver_data.collision_object = true;
+  screwdriver_data.type = ObjectType::MESH;
+  screwdriver_data.last_observed_pose = {};
+
+  MeshData screwdriver;
+  screwdriver.id = "screwdriver";
+
   objects_hash_["bin"] = bin_data;
+  objects_hash_["screwdriver"] = screwdriver_data;
   registered_solid_primitives_["bin"] = bin;
+  registered_meshs_["screwdriver"] = screwdriver;
 }
 
 
@@ -159,7 +176,20 @@ void TableMonitor::update_pose_of_all_objects()
   {
     object.second.last_observed_pose = find_object(object.second.id);
   }
-} 
+}
+
+
+void TableMonitor::add_object_to_scene(std::string object_id, std::vector<double> pose)
+{
+  if(registered_solid_primitives_.find(object_id) != registered_solid_primitives_.end())
+  {
+    add_primitive_object_to_scene(object_id, pose, true);
+  }
+  else if(registered_meshs_.find(object_id) != registered_meshs_.end())
+  {
+    add_mesh_to_scene(object_id, pose, true);
+  }
+}
 
 
 void TableMonitor::add_primitive_object_to_scene(std::string object_id, std::vector<double> pose, bool update_scene)
@@ -188,6 +218,48 @@ void TableMonitor::add_primitive_object_to_scene(std::string object_id, std::vec
   col_obj.primitive_poses.push_back(obj_pose);
   col_obj.operation = col_obj.ADD;
    
+  // Adding object to planning scene
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->processCollisionObjectMsg(col_obj);
+  }  // Unlock PlanningScene (scopekill)
+
+  if(update_scene) update_planning_scene();
+}
+
+
+void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> pose, bool update_scene)
+{
+  // Add to registered collision_objects
+  moveit_msgs::msg::CollisionObject col_obj;
+  col_obj.header.frame_id = reference_frame_;
+  col_obj.id = object_id;
+
+  std::string resource_path = "package://"+stl_location+"/"+object_id+".stl";
+  shapes::Mesh* m = shapes::createMeshFromResource("package://object_files/stl/screwdriver.stl");
+
+  // Add mesh extents to register.
+  Eigen::Vector3d extents = shapes::computeShapeExtents(m);
+  registered_meshs_.at(object_id).mesh_extents = {extents[0], extents[1], extents[2]};
+
+  shape_msgs::msg::Mesh mesh;
+  shapes::ShapeMsg shape_msg;
+  shapes::constructMsgFromShape(m, shape_msg);
+  mesh = boost::get<shape_msgs::msg::Mesh>(shape_msg);
+  col_obj.meshes.push_back(mesh);
+
+  geometry_msgs::msg::Pose obj_pose;
+  obj_pose.position.x = pose[0];
+  obj_pose.position.y = pose[1];
+  obj_pose.position.z = pose[2];
+  obj_pose.orientation.x = pose[3];
+  obj_pose.orientation.y = pose[4];
+  obj_pose.orientation.z = pose[5];
+  obj_pose.orientation.w = pose[6];
+
+  col_obj.mesh_poses.push_back(obj_pose);
+  col_obj.operation = col_obj.ADD;
+
   // Adding object to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
@@ -229,10 +301,9 @@ std::vector<double> TableMonitor::get_object_dimensions(std::string object_id)
   {
     return registered_solid_primitives_.at(object_id).dimensions;
   }
-  else
+  else if(registered_meshs_.find(object_id) != registered_meshs_.end())
   {
-    std::cout << "Object must be a solid primitive" << std::endl;
-    return {};
+    return registered_meshs_.at(object_id).mesh_extents;
   }
 }
 

@@ -13,10 +13,12 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_msgs REQUIRED)
+find_package(geometric_shapes REQUIRED)
 find_package(rosidl_default_runtime REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(angles REQUIRED)
 find_package(tf2_eigen REQUIRED)
+find_package(object_files REQUIRED)
 
 # moveit2_wrapper
 add_library(moveit2_wrapper SHARED src/moveit2_wrapper.cpp)
@@ -38,7 +40,9 @@ ament_target_dependencies(table_monitor
                           moveit_msgs
                           Boost
                           angles
-                          tf2_eigen                                                 
+                          tf2_eigen
+                          geometric_shapes
+                          object_files                                                 
 )
 
 install(DIRECTORY include/ DESTINATION include)
