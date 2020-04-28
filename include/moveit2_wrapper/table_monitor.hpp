@@ -39,10 +39,10 @@ public:
   /* Returns the pose of a registered object. */
   std::vector<double> find_object(std::string object_id);
 
-  /* Adds a registered object to the planning scene. */
+  /* Adds a registered object to the planning scene. Pose given using quaternions. */
   void add_object_to_scene(std::string object_id, std::vector<double> pose);
 
-  /* Moves a registered object to the given pose. */
+  /* Moves a registered object to the given pose. Pose given using quaternions.*/
   void move_object(std::string object_id, std::vector<double> pose);
 
   /* Removes a registered object from the planning scene. */

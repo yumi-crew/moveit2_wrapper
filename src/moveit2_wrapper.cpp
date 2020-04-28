@@ -18,8 +18,7 @@ namespace moveit2_wrapper
 {
 
 Moveit2Wrapper::Moveit2Wrapper(std::shared_ptr<rclcpp::Node> node) : node_{node}
-{  
-}
+{}
 
 
 bool Moveit2Wrapper::init()
@@ -42,12 +41,12 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
 
   if(planning_components_hash_.find(planning_component) == planning_components_hash_.end())
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "Planning component '" << planning_component << "' not found");
+    std::cout << "[ERROR] Planning component '" << planning_component << "' not found." << std::endl;
     return false;
   }
   if(state.size() != planning_components_hash_.at(planning_component).num_joints)
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "State vector must contain same number of elements as planning component");
+    std::cout << "[ERROR] State vector must contain same number of elements as planning component." << std::endl;
     return false;
   }
 
@@ -57,7 +56,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
   bool ret = planning_components_hash_.at(planning_component).planning_component->setGoal(goal_state);
   if(!ret)
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(),"Unable to set goal for planning component '" << planning_component << "'");
+    std::cout << "[ERROR] Unable to set goal for planning component '" << planning_component << "'." << std::endl;
     return false;
   }
 
@@ -76,15 +75,15 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
   {
     if(retries_left) 
     {
-      RCLCPP_ERROR_STREAM(node_->get_logger(), "Planning for planning component '" << planning_component << 
-        "' failed, " << retries_left  << " retries left.");
-      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
       retries_left--;
+      std::cout << "Planning for planning component '" << planning_component << "' failed, " << retries_left  
+                << " retries left." << std::endl;
+      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
     }
     else
     {
-      RCLCPP_ERROR_STREAM(node_->get_logger(),"Planning for planning component '" << planning_component 
-        << "' failed after " << retries << ". Aborting.");
+      std::cout << "Planning for planning component '" << planning_component << "' failed after " << retries   
+                << " attempts. Aborting." << std::endl;
       return false;
     } 
   } 
@@ -101,7 +100,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
     }
     else 
     { 
-      RCLCPP_WARN(node_->get_logger(),"Visualization is only available when no other planning_component is in motion"); 
+      std::cout << "[WARN] Visualization is only available when no other planning_component is in motion." << std::endl;
     }
   }
 
@@ -115,8 +114,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
   {
     block_until_reached(state, planning_component);
     planning_components_hash_.at(planning_component).in_motion = false;
-    RCLCPP_INFO_STREAM(node_->get_logger(), "Goal state of planning component '" << planning_component 
-      << "' considered reached.");
+    std::cout << "Goal state of planning component '" << planning_component << "' considered reached.\n";
   }
   return true;
 }
@@ -131,41 +129,24 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
   if(!planning_components_hash_.at(planning_component).joint_group->hasLinkModel(link) && 
       link!=planning_components_hash_.at(planning_component).ee_link)
   {
-    RCLCPP_ERROR(node_->get_logger(),"Link must be a member of the joint group or be the registered end-effector link.");
+    std::cout << "[ERROR] Link must be a member of the joint group or be the registered end-effector link."<< std::endl;
     return false;
   }
   
-  // Create pose message. 
-  geometry_msgs::msg::PoseStamped msg;
-  msg.header.stamp = std::make_shared<rclcpp::Clock>(RCL_ROS_TIME)->now();
-  msg.header.frame_id = moveit_cpp_->getRobotModel()->getModelFrame();
-  msg.pose.position.x = pose[0];
-  msg.pose.position.y = pose[1];
-  msg.pose.position.z = pose[2];
-
-  // Within this class, orientation will always be represented using quaternions.
+  geometry_msgs::msg::PoseStamped msg = pose_vec_to_msg(pose, eulerzyx);
   if(eulerzyx)
   {
-    std::vector<double> q_orien = eulerzyx_to_quat({pose[3], pose[4], pose[5]});
-    msg.pose.orientation.x = q_orien[0];
-    msg.pose.orientation.y = q_orien[1];
-    msg.pose.orientation.z = q_orien[2];
-    msg.pose.orientation.w = q_orien[3];
-    std::copy_n(q_orien.begin(), 4, pose.begin()+3);
-  }
-  else
-  {
-    msg.pose.orientation.x = pose[3];
-    msg.pose.orientation.y = pose[4];
-    msg.pose.orientation.z = pose[5];
-    msg.pose.orientation.w = pose[6];
+    pose[3] = msg.pose.orientation.x;
+    pose[4] = msg.pose.orientation.y;
+    pose[5] = msg.pose.orientation.z;
+    pose.push_back(msg.pose.orientation.w);
   }
 
   // Set goal
   if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, 
      planning_components_hash_.at(planning_component).ee_link))
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(),"Unable to set goal for planning component '" << planning_component << "'");
+    std::cout << "[ERROR] Unable to set goal for planning component '" << planning_component << "'." << std::endl;
     return false;
   }
 
@@ -184,15 +165,15 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
   {
     if(retries_left) 
     {
-      RCLCPP_WARN_STREAM(node_->get_logger(), "Planning for planning component '" << planning_component << 
-        "' failed, " << retries_left  << " retries left.");
-      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
       retries_left--;
+      std::cout << "Planning for planning component '" << planning_component << "' failed, " << retries_left 
+               << " retries left." << std::endl;
+      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
     }
     else
     {
-      RCLCPP_ERROR_STREAM(node_->get_logger(),"Planning for planning component '" << planning_component 
-        << "' failed after " << retries << ". Aborting.");
+      std::cout << "Planning for planning component '" << planning_component << "' failed after " << retries 
+                << " attempts. Aborting." << std::endl;
       return false;
     } 
   } 
@@ -209,7 +190,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
     }
     else 
     { 
-      RCLCPP_WARN(node_->get_logger(),"Visualization is only available when no other planning_component is in motion"); 
+      std::cout << "[WARN] Visualization is only available when no other planning_component is in motion" << std::endl;
     }
   }
 
@@ -223,8 +204,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
   {
     block_until_reached(pose, planning_component, planning_components_hash_.at(planning_component).ee_link);
     planning_components_hash_.at(planning_component).in_motion = false;
-    RCLCPP_INFO_STREAM(node_->get_logger(), "Goal pose of planning component '" << planning_component 
-      << "' considered reached.");
+    std::cout << "Goal pose of planning component '" << planning_component  << "' considered reached." << std::endl;
   }
   return true;
 }
@@ -258,8 +238,9 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     }
     if(!found)
     {
-      RCLCPP_ERROR_STREAM(node_->get_logger(), "Link '" << link << "' is not the last link of any of the joint_groups "
-         << "of planning component '" << planning_component << "'");
+      std::cout << "[ERROR] Link '" << link << "' is not the last link of any of the joint_groups " 
+                << "of planning component '" << planning_component << "'" << std::endl;      
+      return false;
     }
   }
   else
@@ -270,23 +251,61 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
 
   Eigen::Isometry3d target_frame; 
   geometry_msgs::msg::PoseStamped msg = pose_vec_to_msg(pose, eulerzyx);
+  if(eulerzyx)
+  {
+    pose[3] = msg.pose.orientation.x;
+    pose[4] = msg.pose.orientation.y;
+    pose[5] = msg.pose.orientation.z;
+    pose.push_back(msg.pose.orientation.w);
+  }
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
+  bool path_valid = false;
   double factor = joint_threshold_factor_;
   double percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model,
-                                                                           target_frame, true, cartesian_max_step_, factor);
-  while(percentage < min_percentage)
+                                                                           target_frame, true, cartesian_max_step_, 
+                                                                           factor);
+  std::shared_ptr<robot_trajectory::RobotTrajectory> robot_traj;
+  if(percentage >= min_percentage)
+  {                                                                           
+    robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
+                                                                                            speed_scale,acc_scale));
+    {  // Lock PlanningScene
+      planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+      path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+    }  // Unlock PlanningScene
+  }
+
+  while((!path_valid) || (percentage < min_percentage))
   {
     factor += 0.5;
     percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model, 
                                                                       target_frame, true, cartesian_max_step_, factor);
+    if(percentage >= min_percentage)
+    {                                                                      
+      robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
+                                                                                              speed_scale,acc_scale));
+      {  // Lock PlanningScene
+        planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+        path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+      }  // Unlock PlanningScene
+    }
+  
+    if(factor > joint_threshold_factor_limit_)
+    {
+      std::cout << "[ERROR] Unable to find a valid cartesian path with minimum " << min_percentage 
+                << " linearity. Aborting.\n";
+      std::cout << "percentage: " << percentage << std::endl;
+      std::cout << "path_valid: " << path_valid << std::endl;
+      return false;
+    }
   }
-  //std::cout << "percentage: " << percentage << std::endl;
-  //std::cout << "number of waypoints: " << states.size() << std::endl;
 
-  robot_trajectory::RobotTrajectory robot_traj = time_parameterize_path(states,planning_component,speed_scale,acc_scale);
-
+  // std::cout << "percentage: " << percentage << std::endl;
+  // std::cout << "path_valid: " << path_valid << std::endl;
+  // std::cout << "number of waypoints: " << states.size() << std::endl;
+  
   // Visualize only if no other planning_components are in motion.
   if(visualize) 
   { 
@@ -295,16 +314,16 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     if(it == planning_components_hash_.end())
     { 
       // Abort motion if visualization is aborted.
-      if(!visualize_trajectory(robot_traj, planning_component, vis_abortable)) return false;
+      if(!visualize_trajectory(*robot_traj.get(), planning_component, vis_abortable)) return false;
     }
     else 
     { 
-      RCLCPP_WARN(node_->get_logger(),"Visualization is only available when no other planning_component is in motion"); 
+      std::cout << "[WARN] Visualization is only available when no other planning_component is in motion" << std::endl; 
     }
   }
 
   moveit_msgs::msg::RobotTrajectory robot_traj_msg;
-  robot_traj.getRobotTrajectoryMsg(robot_traj_msg);
+  robot_traj->getRobotTrajectoryMsg(robot_traj_msg);
   planning_components_hash_.at(planning_component).trajectory_publisher->publish(robot_traj_msg.joint_trajectory);
   planning_components_hash_.at(planning_component).in_motion = true;
 
@@ -312,8 +331,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   {
     block_until_reached(pose, planning_component, link);
     planning_components_hash_.at(planning_component).in_motion = false;
-    RCLCPP_INFO_STREAM(node_->get_logger(), "Goal pose of planning component '" << planning_component 
-      << "' considered reached.");
+    std::cout << "Goal pose of planning component '" << planning_component << "' considered reached." << std::endl;
   }
   return true;
 }
@@ -330,14 +348,12 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
   
   if( planning_components_hash_.at("left_arm").num_joints != state_left.size() )
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "state_left must have " << 
-      planning_components_hash_.at("left_arm").num_joints << " joints");
+    std::cout << "[ERROR] state_left must have " << planning_components_hash_.at("left_arm").num_joints << " joints.\n";
     return false;
   }
   if( planning_components_hash_.at("right_arm").num_joints != state_right.size() )
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "state_right must have " << 
-      planning_components_hash_.at("right_arm").num_joints << " joints");
+    std::cout << "[ERROR] state_right must have " << planning_components_hash_.at("right_arm").num_joints<<" joints.\n";
     return false;
   }
 
@@ -347,7 +363,7 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
   bool ret = planning_components_hash_.at("both_arms").planning_component->setGoal(goal_state);
   if(!ret)
   {
-    RCLCPP_ERROR_STREAM(node_->get_logger(), "Unable to set goal for planning component 'both_arms'. Aborting.");
+    std::cout << "[ERROR] Unable to set goal for planning component 'both_arms'. Aborting." << std::endl;
     return false;
   }
 
@@ -358,15 +374,14 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
   {
     if(retries_left) 
     {
-      RCLCPP_WARN_STREAM(node_->get_logger(), "Planning for planning component " << "both_arms" << " failed, " << 
-        retries_left  << " retries left.");
-      planned_solution = planning_components_hash_.at("both_arms").planning_component->plan();
       retries_left--;
+      std::cout << "Planning for planning component " << "both_arms" << " failed, " <<retries_left<<" retries left.\n";
+      planned_solution = planning_components_hash_.at("both_arms").planning_component->plan();
     }
     else
     {
-      RCLCPP_ERROR_STREAM(node_->get_logger(),"Planning for planning component " << "both_arms" << " failed after " 
-        << retries << ". Aborting.");
+      std::cout << "[ERROR] Planning for planning component " << "both_arms" << " failed after " << retries 
+                << " attempts. Aborting.\n";
       return false;
     } 
   } 
@@ -429,7 +444,7 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
   {
     block_until_reached(state, "both_arms");
     planning_components_hash_.at("both_arms").in_motion = false;
-    RCLCPP_INFO_STREAM(node_->get_logger(), "Goal state of planning component 'both_arms' considered reached.");
+    std::cout << "Goal state of planning component 'both_arms' considered reached." << std::endl;
   }
   return true;
 }
@@ -437,7 +452,7 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
 
 void Moveit2Wrapper::launch_planning_scene()
 {
-  RCLCPP_INFO_STREAM(node_->get_logger(),  "Launching the planning scene.");
+  std::cout <<  "Launching the planning scene." << std::endl;
   construct_planning_scene();
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
@@ -635,8 +650,8 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_state, std::s
   {
     summed_error = sum_error(goal_state, planning_component);
     // Calculate error more frequently when closer to the target.
-    if(summed_error > 1.22) rclcpp::sleep_for(std::chrono::seconds(1)); 
-    else rclcpp::sleep_for(std::chrono::milliseconds(50));
+    if(summed_error > 1.22) { sleep(1); }
+    else { sleep(0.1); }
     update_joint_state_hash(planning_component);
     //std::cout << "summed error: " << summed_error << std::endl;
   }
@@ -648,12 +663,12 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_pose, std::st
 {
   std::vector<double> errors{1, 1};
   std::vector<double> curr_pose = find_pose(link_name);
-  while((errors[0] > allowed_pos_error_) && (errors[1] > allowed_or_errror_))
+  while((errors[0] > allowed_pos_error_) || (errors[1] > allowed_or_errror_))
   {
     errors = sum_error(goal_pose, curr_pose);
     // Calculate error more frequently when closer to the target.
-    if(errors[0] > 0.10) rclcpp::sleep_for(std::chrono::seconds(1)); 
-    else rclcpp::sleep_for(std::chrono::milliseconds(50));
+    if(errors[0] > 0.10) { sleep(1); } 
+    else { sleep(0.1); }
     curr_pose = find_pose(link_name);
     //std::cout << "summed error, position: " << errors[0] << " summed error, orientation: " << errors[1]  << std::endl;
   }

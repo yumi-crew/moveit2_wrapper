@@ -133,7 +133,14 @@ public:
   /* Determines if a given state is reached by the planning component. */
   bool state_reached(std::string planning_component, std::vector<double> goal_state);
 
-  
+  /** 
+   * Returns the pose given by a vector as a pose msg.
+   * 
+   * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
+   *                 instead of quaternions.
+   */
+  geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
+
   struct PlanningComponentInfo
   {
     std::shared_ptr<moveit::planning_interface::PlanningComponent> planning_component;
@@ -165,11 +172,12 @@ private:
   
   double safety_margin_ = 0.04; // 4 cm
   double allowed_pos_error_ = 0.002; // 2 mm
-  double allowed_or_errror_ = 0.02; // summed quaternion error
+  double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.001; // summed joint state error
   double maximum_planning_time_ = 5.0;
   double cartesian_max_step_ = 0.002;
-  double joint_threshold_factor_ = 2;
+  double joint_threshold_factor_ = 1;
+  double joint_threshold_factor_limit_ = 6;
   std::string planning_pipeline_ = "ompl";
 
   void populate_hash_tables();
@@ -181,6 +189,8 @@ private:
   std::vector<double> sum_error(std::vector<double>& goal_pose, std::vector<double>& curr_pose);
 
   void block_until_reached(std::vector<double>& goal_state, std::string planning_component);
+  
+  /* Expects pose using quaterions. */
   void block_until_reached(std::vector<double>& goal_pose, std::string planning_component, std::string link_name);
 
   /**
@@ -197,14 +207,6 @@ private:
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
-
-  /** 
-   * Returns the pose given by a vector as a pose msg.
-   * 
-   * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
-   *                 instead of quaternions.
-   */
-  geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
 
   /* Returns the pose given by a pose message as a 7D vector. [position given in meters, orientation in quaternions] */
   std::vector<double> pose_msg_to_vec(geometry_msgs::msg::PoseStamped msg);
