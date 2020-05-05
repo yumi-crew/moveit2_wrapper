@@ -83,9 +83,9 @@ public:
    */
   bool cartesian_pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
                                      bool eulerzyx=false, bool visualize=true, bool vis_abortable=false,  
-                                     bool blocking=true, double min_percentage=1, double speed_scale=1, 
-                                     double acc_scale=1);
-
+                                     bool blocking=true, bool collision_checking=true, double min_percentage=1, 
+                                     double speed_scale=1, double acc_scale=1);
+                                    
   /**
    * State-to-state motion of a planning component. 
    * 
@@ -141,6 +141,26 @@ public:
    */
   geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
 
+  /* Returns the current configuration of the joints og the given planning component. */ 
+  std::vector<double> get_current_state(std::string planning_component);
+
+  /* Gives the pose of a desired link. [position given in meters, orientation in quaternions]
+     {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
+  std::vector<double> find_pose(std::string link_name);
+
+  Eigen::Matrix4d find_pose_matrix(std::string link_name);
+
+  /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
+  std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
+
+  std::vector<double> quat_to_eulerzyx(std::vector<double> orientation);
+
+  /* Disables collisions between a link and an object. */
+  void disable_collision(std::string link, std::string object_id);
+
+  bool gripper_closed(std::string planning_component);
+  bool gripper_open(std::string planning_component);
+
   struct PlanningComponentInfo
   {
     std::shared_ptr<moveit::planning_interface::PlanningComponent> planning_component;
@@ -152,6 +172,7 @@ public:
     bool in_motion;
     bool should_replan;
     std::string ee_link;
+    std::string ee_joint;
     std::vector<double> home_configuration;
     std::unordered_map<std::string, std::shared_ptr<moveit::core::JointModelGroup>> secondary_joint_groups;
   };
@@ -160,7 +181,6 @@ public:
     { return &planning_components_hash_; };
 
   moveit::planning_interface::MoveItCppPtr get_moveit_cpp(){ return moveit_cpp_; };
-
 
 private:
   std::shared_ptr<rclcpp::Node> node_;
@@ -174,7 +194,7 @@ private:
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.001; // summed joint state error
-  double maximum_planning_time_ = 5.0;
+  double maximum_planning_time_ = 1.0;
   double cartesian_max_step_ = 0.002;
   double joint_threshold_factor_ = 1;
   double joint_threshold_factor_limit_ = 6;
@@ -201,15 +221,9 @@ private:
   bool visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory, std::string planning_component, 
                             bool abortable);
 
-  /* Gives the pose of a desired link. [position given in meters, orientation in quaternions]
-     {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
-  std::vector<double> find_pose(std::string link_name);
-
-  /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
-  std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
-
   /* Returns the pose given by a pose message as a 7D vector. [position given in meters, orientation in quaternions] */
   std::vector<double> pose_msg_to_vec(geometry_msgs::msg::PoseStamped msg);
+  std::vector<double> pose_msg_to_vec(geometry_msgs::msg::Pose msg);
 
   /* Timeparameterizes a path by computing timestamps using iterative spline interpolation. Returns the trajectory. */
   robot_trajectory::RobotTrajectory time_parameterize_path(std::vector<moveit::core::RobotStatePtr> path, 

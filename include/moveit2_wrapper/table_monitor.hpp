@@ -36,7 +36,7 @@ public:
   /* Adds registered objects with known pose to the planning scene. */
   bool activate();
 
-  /* Returns the pose of a registered object. */
+  /* Returns the pose of a registered object. [quaternions] */
   std::vector<double> find_object(std::string object_id);
 
   /* Adds a registered object to the planning scene. Pose given using quaternions. */
@@ -50,6 +50,11 @@ public:
 
   /* Returns the dimensions of a registered object. */
   std::vector<double> get_object_dimensions(std::string object_id);
+
+  Eigen::Matrix4d get_object_global_transform(std::string object_id);
+
+  std::vector<Eigen::Matrix4d> get_grip_transforms(std::string object_id)
+    { return objects_hash_.at(object_id).grip_transforms; }
 
 private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
@@ -89,6 +94,7 @@ private:
     bool collision_object;
     ObjectType type;
     std::vector<double> last_observed_pose;
+    std::vector<Eigen::Matrix4d> grip_transforms;
   };
 
   std::unordered_map<std::string, ObjectData> objects_hash_;

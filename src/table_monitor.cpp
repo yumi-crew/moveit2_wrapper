@@ -159,6 +159,7 @@ void TableMonitor::populate_hash_tables()
   screwdriver_data.collision_object = true;
   screwdriver_data.type = ObjectType::MESH;
   screwdriver_data.last_observed_pose = {};
+  screwdriver_data.grip_transforms = {};
 
   MeshData screwdriver;
   screwdriver.id = "screwdriver";
@@ -241,6 +242,13 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
   // Add mesh extents to register.
   Eigen::Vector3d extents = shapes::computeShapeExtents(m);
   registered_meshs_.at(object_id).mesh_extents = {extents[0], extents[1], extents[2]};
+  
+  // Matrix representing first 
+  Eigen::Matrix4d grip1 = Eigen::Matrix4d::Identity();
+  grip1(0, 3) = extents[0]/2;
+  grip1(1, 3) = 1.0*extents[1]/4.0;
+  grip1(2, 3) = -extents[2]/2.2;
+  objects_hash_.at(object_id).grip_transforms.push_back(grip1);
 
   shape_msgs::msg::Mesh mesh;
   shapes::ShapeMsg shape_msg;
@@ -305,6 +313,20 @@ std::vector<double> TableMonitor::get_object_dimensions(std::string object_id)
   {
     return registered_meshs_.at(object_id).mesh_extents;
   }
+}
+
+
+Eigen::Matrix4d TableMonitor::get_object_global_transform(std::string object_id)
+{
+  Eigen::Affine3d object_frame_transform;
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    if(scene->knowsFrameTransform(object_id))
+    {
+      object_frame_transform = scene->getFrameTransform(object_id);
+    }
+  }
+  return object_frame_transform.matrix();
 }
 
 } // namespace moveit2_wrapper

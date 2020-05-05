@@ -211,9 +211,10 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
 
 
 bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_component, std::string link, 
-                                                   std::vector<double> pose, bool eulerzyx, bool visualize,
-                                                   bool vis_abortable, bool blocking, double speed_scale, 
-                                                   double acc_scale, double min_percentage)
+                                                   std::vector<double> pose, bool eulerzyx, bool visualize, 
+                                                   bool vis_abortable, bool blocking, bool collision_checking, 
+                                                   double min_percentage, double speed_scale, double acc_scale)
+                                                   
 {
   //std::cout << "cartesian_pose_to_pose_motion() called for link '" << link << "'" << std::endl;
   
@@ -261,7 +262,9 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
-  bool path_valid = false;
+  bool path_valid;
+  if(collision_checking) path_valid = false;
+  else path_valid = true;
   double factor = joint_threshold_factor_;
   double percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model,
                                                                            target_frame, true, cartesian_max_step_, 
@@ -271,6 +274,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   {                                                                           
     robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
                                                                                             speed_scale,acc_scale));
+    if(collision_checking)
     {  // Lock PlanningScene
       planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
       path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
@@ -286,6 +290,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     {                                                                      
       robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
                                                                                               speed_scale,acc_scale));
+      if(collision_checking)                                                                                              
       {  // Lock PlanningScene
         planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
         path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
@@ -478,6 +483,7 @@ void Moveit2Wrapper::populate_hash_tables()
   right_arm_info.in_motion = false;
   right_arm_info.should_replan = false;
   right_arm_info.ee_link = "gripper_r_base";
+  right_arm_info.ee_joint = "gripper_r_joint"; 
   right_arm_info.home_configuration = {0.0, -2.26, -2.35, 0.52, 0.0, 0.52, 0.0};
   right_arm_info.secondary_joint_groups["with_gripper"] = std::make_shared<moveit::core::JointModelGroup>(
     *moveit_cpp_->getRobotModel()->getJointModelGroup("right_arm_with_gripper"));
@@ -496,6 +502,7 @@ void Moveit2Wrapper::populate_hash_tables()
   left_arm_info.in_motion = false;
   left_arm_info.should_replan = false;
   left_arm_info.ee_link = "gripper_l_base";
+  left_arm_info.ee_joint = "gripper_l_joint";
   left_arm_info.home_configuration = {0.0, -2.26, 2.35, 0.52, 0.0, 0.52, 0.0};
   left_arm_info.secondary_joint_groups["with_gripper"] = std::make_shared<moveit::core::JointModelGroup>(
     *moveit_cpp_->getRobotModel()->getJointModelGroup("left_arm_with_gripper"));
@@ -687,6 +694,16 @@ std::vector<double> Moveit2Wrapper::find_pose(std::string link_name)
 }
 
 
+Eigen::Matrix4d Moveit2Wrapper::find_pose_matrix(std::string link_name)
+{
+  const Eigen::Isometry3d& pose_eigen = moveit_cpp_->getCurrentState()->getGlobalLinkTransform(
+      moveit_cpp_->getCurrentState()->getLinkModel(link_name)); 
+
+  Eigen::Matrix4d pose_eigen_matrix = pose_eigen.matrix();
+  return pose_eigen_matrix;
+}
+
+
 bool Moveit2Wrapper::visualize_trajectory(const robot_trajectory::RobotTrajectory& trajectory, 
                                           std::string planning_component, bool abortable)
 {
@@ -798,6 +815,21 @@ std::vector<double> Moveit2Wrapper::pose_msg_to_vec(geometry_msgs::msg::PoseStam
 }
 
 
+std::vector<double> Moveit2Wrapper::pose_msg_to_vec(geometry_msgs::msg::Pose msg)
+{
+  std::vector<double> vec; vec.resize(7);
+  vec[0] = msg.position.x;
+  vec[1] = msg.position.y;
+  vec[2] = msg.position.z;
+  vec[3] = msg.orientation.x;
+  vec[4] = msg.orientation.y;
+  vec[5] = msg.orientation.z;
+  vec[6] = msg.orientation.w;
+  return vec;
+}
+
+
+
 robot_trajectory::RobotTrajectory 
 Moveit2Wrapper::time_parameterize_path(std::vector<moveit::core::RobotStatePtr> robot_states, 
                                        std::string planning_component, double speed_scale, double acc_scale)
@@ -834,6 +866,58 @@ Moveit2Wrapper::time_parameterize_path(std::vector<moveit::core::RobotStatePtr> 
   trajectory_processing::IterativeSplineParameterization parameterization(true);
   parameterization.computeTimeStamps(robot_traj, speed_scale, acc_scale);
   return robot_traj;
+}
+
+
+std::vector<double> Moveit2Wrapper::get_current_state(std::string planning_component)
+{
+  std::vector<double> joint_state;
+  for(auto joint : planning_components_hash_.at(planning_component).joint_names)
+  {
+    joint_state.push_back(moveit_cpp_->getCurrentState()->getVariablePosition(joint));
+  }
+  return joint_state;
+}
+
+
+void Moveit2Wrapper::disable_collision(std::string link, std::string object_id)
+{
+  /* DOESNT WORK */
+
+  // Adding objects to planning scene
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->getAllowedCollisionMatrixNonConst().setEntry("screwdriver", true);
+  }  // Unlock PlanningScene (scopekill)  
+  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE); 
+}
+
+
+std::vector<double> Moveit2Wrapper::quat_to_eulerzyx(std::vector<double> orientation)
+{
+  KDL::Rotation rot = KDL::Rotation().Quaternion(orientation[0], orientation[1], orientation[2], orientation[3]);
+  std::vector<double> zyx(3);
+  rot.GetEulerZYX(zyx[0], zyx[1], zyx[2]);
+  return zyx;
+}
+
+
+bool Moveit2Wrapper::gripper_closed(std::string planning_component)
+{
+  std::string ee_joint = planning_components_hash_.at(planning_component).ee_joint;
+  double pos = moveit_cpp_->getCurrentState()->getVariablePosition(ee_joint);
+  if(pos < 0.002) return true;
+  else return false;
+}
+
+
+bool Moveit2Wrapper::gripper_open(std::string planning_component)
+{
+  std::string ee_joint = planning_components_hash_.at(planning_component).ee_joint;
+  double pos = moveit_cpp_->getCurrentState()->getVariablePosition(ee_joint);
+  if(pos > 0.019) return true;
+  else return false;
 }
 
 } // namepsace moveit2_wrapper
