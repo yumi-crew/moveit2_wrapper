@@ -62,7 +62,6 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
 
   // Set planning parameters.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
-  plannning_params.planning_attempts = retries;
   plannning_params.planning_time = maximum_planning_time_;
   plannning_params.max_velocity_scaling_factor = speed_scale;
   plannning_params.max_acceleration_scaling_factor = acc_scale;
@@ -262,9 +261,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
-  bool path_valid;
-  if(collision_checking) path_valid = false;
-  else path_valid = true;
+  bool path_valid = false;
   double factor = joint_threshold_factor_;
   double percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model,
                                                                            target_frame, true, cartesian_max_step_, 
@@ -274,11 +271,22 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   {                                                                           
     robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
                                                                                             speed_scale,acc_scale));
-    if(collision_checking)
-    {  // Lock PlanningScene
+    { // Lock PlanningScene
       planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-      path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
-    }  // Unlock PlanningScene
+      if(collision_checking) path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+      else
+      {
+        path_valid = true;
+        for(auto x : states)
+        { 
+          if(!scene->isStateFeasible(*x))
+          {
+            path_valid = false;
+            break;
+          }
+        }
+      }
+    } // Unlock PlanningScene
   }
 
   while((!path_valid) || (percentage < min_percentage))
@@ -290,10 +298,22 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     {                                                                      
       robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
                                                                                               speed_scale,acc_scale));
-      if(collision_checking)                                                                                              
+                                                                                                   
       {  // Lock PlanningScene
         planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-        path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+        if(collision_checking)  path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+        else
+        {
+          path_valid = true;
+          for(auto x : states)
+          { 
+            if(!scene->isStateFeasible(*x))
+            {
+              path_valid = false;
+              break;
+            }
+          }
+        }
       }  // Unlock PlanningScene
     }
   
@@ -482,7 +502,7 @@ void Moveit2Wrapper::populate_hash_tables()
     "/r/joint_trajectory_controller/arm_stop", 1);
   right_arm_info.in_motion = false;
   right_arm_info.should_replan = false;
-  right_arm_info.ee_link = "gripper_r_base";
+  right_arm_info.ee_link = "gripper_r_center";
   right_arm_info.ee_joint = "gripper_r_joint"; 
   right_arm_info.home_configuration = {0.0, -2.26, -2.35, 0.52, 0.0, 0.52, 0.0};
   right_arm_info.secondary_joint_groups["with_gripper"] = std::make_shared<moveit::core::JointModelGroup>(
@@ -501,7 +521,7 @@ void Moveit2Wrapper::populate_hash_tables()
     "/l/joint_trajectory_controller/arm_stop", 1);
   left_arm_info.in_motion = false;
   left_arm_info.should_replan = false;
-  left_arm_info.ee_link = "gripper_l_base";
+  left_arm_info.ee_link = "gripper_l_center";
   left_arm_info.ee_joint = "gripper_l_joint";
   left_arm_info.home_configuration = {0.0, -2.26, 2.35, 0.52, 0.0, 0.52, 0.0};
   left_arm_info.secondary_joint_groups["with_gripper"] = std::make_shared<moveit::core::JointModelGroup>(
@@ -548,9 +568,9 @@ void Moveit2Wrapper::construct_planning_scene()
   desk.type = desk.BOX;
   desk.dimensions = { 0.75, 0.5, 1.0 };
   geometry_msgs::msg::Pose desk_pose;
-  desk_pose.position.x =  0.33 + desk.dimensions[0]/2.0;
-  desk_pose.position.y =  0.56 + desk.dimensions[1]/2.0;
-  desk_pose.position.z = -0.21 + desk.dimensions[2]/2.0;
+  desk_pose.position.x =  0.33 + desk.dimensions[0]/2.0 - 0.10;
+  desk_pose.position.y =  0.56 + desk.dimensions[1]/2.0 - 0.10;
+  desk_pose.position.z = -0.21 + desk.dimensions[2]/2.0 + 0.02;
   col_obj.primitives.push_back(desk);
   col_obj.primitive_poses.push_back(desk_pose);
   col_obj.operation = col_obj.ADD;
@@ -576,11 +596,11 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj3.id = "pallet";
   shape_msgs::msg::SolidPrimitive pallet;
   pallet.type = pallet.BOX;
-  pallet.dimensions = { 0.85, 0.70, 0.12 };
+  pallet.dimensions = { 2, 0.70, 0.12 };
   geometry_msgs::msg::Pose pallet_pose;
-  pallet_pose.position.x = 0.22 - pallet.dimensions[0]/2.0;
+  pallet_pose.position.x = 0.0;//0.22 - pallet.dimensions[0]/2.0;
   pallet_pose.position.y = 0.0;
-  pallet_pose.position.z = -0.09 - pallet.dimensions[2]/2.0;
+  pallet_pose.position.z = -pallet.dimensions[2]/2.0;
   col_obj3.primitives.push_back(pallet);
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
@@ -748,7 +768,7 @@ bool Moveit2Wrapper::pose_reached(std::string planning_component, std::string li
   std::vector<double> errors{1, 1};
   std::vector<double> curr_pose = find_pose(link);  
   errors = sum_error(goal_pose, curr_pose);
-  //std::cout << "position error: " << errors[0] << ", orientation error: " << errors[1] << std::endl;
+  std::cout << "position error: " << errors[0] << ", orientation error: " << errors[1] << std::endl;
   if((errors[0] < allowed_pos_error_) && (errors[1] < allowed_or_errror_)) return true;
   else return false;
 }

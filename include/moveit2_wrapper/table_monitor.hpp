@@ -56,10 +56,18 @@ public:
   std::vector<Eigen::Matrix4d> get_grip_transforms(std::string object_id)
     { return objects_hash_.at(object_id).grip_transforms; }
 
+
 private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
   std::string reference_frame_ = "yumi_base_link";
   std::string stl_location = "object_files/stl";
+
+  enum ObjectType
+  {
+    SOLID_PRIMITIVE = 1,
+    MESH = 2
+  };
+
 
   enum SolidPrimitiveType
   {
@@ -67,12 +75,6 @@ private:
     SPHERE=2,
     CYLINDER=3,
     CONE=4
-  };
-
-  enum ObjectType
-  {
-    SOLID_PRIMITIVE = 1,
-    MESH = 2
   };
 
   struct SolidPrimitiveData

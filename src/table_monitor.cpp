@@ -127,7 +127,9 @@ void TableMonitor::move_collision_object(std::string object_id, std::vector<doub
   pose_msg.orientation.z = new_pose[5];
   pose_msg.orientation.w = new_pose[6];
 
-  obj_msg.primitive_poses.push_back(pose_msg);
+  if(objects_hash_.at(object_id).type == ObjectType::SOLID_PRIMITIVE) obj_msg.primitive_poses.push_back(pose_msg);
+  else if( objects_hash_.at(object_id).type == ObjectType::MESH)      obj_msg.mesh_poses.push_back(pose_msg);
+  
   obj_msg.operation = obj_msg.MOVE;
 
   {  // Lock PlanningScene
@@ -245,9 +247,9 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
   
   // Matrix representing first 
   Eigen::Matrix4d grip1 = Eigen::Matrix4d::Identity();
-  grip1(0, 3) = extents[0]/2;
-  grip1(1, 3) = 1.0*extents[1]/4.0;
-  grip1(2, 3) = -extents[2]/2.2;
+  // grip1(0, 3) = extents[0]/2;
+  // grip1(1, 3) = 1.0*extents[1]/4.0;
+  // grip1(2, 3) = -extents[2]/2.2;
   objects_hash_.at(object_id).grip_transforms.push_back(grip1);
 
   shape_msgs::msg::Mesh mesh;
@@ -280,9 +282,9 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
 
 void TableMonitor::update_planning_scene()
 {
-  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
 }
 
 

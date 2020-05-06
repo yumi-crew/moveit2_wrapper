@@ -194,9 +194,9 @@ private:
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.001; // summed joint state error
-  double maximum_planning_time_ = 1.0;
-  double cartesian_max_step_ = 0.002;
-  double joint_threshold_factor_ = 1;
+  double maximum_planning_time_ = 2.0;
+  double cartesian_max_step_ = 0.004;
+  double joint_threshold_factor_ = 2;
   double joint_threshold_factor_limit_ = 6;
   std::string planning_pipeline_ = "ompl";
 
