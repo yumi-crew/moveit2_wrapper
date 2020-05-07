@@ -190,12 +190,11 @@ private:
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
   
-  double safety_margin_ = 0.04; // 4 cm
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.001; // summed joint state error
   double maximum_planning_time_ = 2.0;
-  double cartesian_max_step_ = 0.004;
+  double cartesian_max_step_ = 0.005;
   double joint_threshold_factor_ = 2;
   double joint_threshold_factor_limit_ = 6;
   std::string planning_pipeline_ = "ompl";
@@ -229,6 +228,10 @@ private:
   robot_trajectory::RobotTrajectory time_parameterize_path(std::vector<moveit::core::RobotStatePtr> path, 
                                                            std::string planning_component, double speed_scale,
                                                            double acc_scale);
+  
+  std::vector<double> find_pose(std::string link_name, robot_state::RobotStatePtr state);
+  bool state_at_pose(std::string planning_component, std::string link, std::vector<double> pose, 
+                     bool eulerzyx, moveit::core::RobotStatePtr state);
 };
 
 } // namespace moveit2_wrapper

@@ -145,17 +145,19 @@ void TableMonitor::populate_hash_tables()
 {
   /* Manual fillout, should be replaced by config file parseing. */
 
+  // solid bin
   ObjectData bin_data;
-  bin_data.id = "bin";
+  bin_data.id = "bin_solid";
   bin_data.collision_object = true;
   bin_data.type = ObjectType::SOLID_PRIMITIVE;
   bin_data.last_observed_pose = {};
 
   SolidPrimitiveData bin;
-  bin.id = "bin";
+  bin.id = "bin_solid";
   bin.dimensions = {0.20, 0.20, 0.20};
   bin.type = SolidPrimitiveType::BOX;
 
+  // screwdriver
   ObjectData screwdriver_data;
   screwdriver_data.id = "screwdriver";
   screwdriver_data.collision_object = true;
@@ -166,10 +168,23 @@ void TableMonitor::populate_hash_tables()
   MeshData screwdriver;
   screwdriver.id = "screwdriver";
 
-  objects_hash_["bin"] = bin_data;
+  // mesh bin
+  ObjectData bin_mesh_data;
+  bin_mesh_data.id = "bin";
+  bin_mesh_data.collision_object = true;
+  bin_mesh_data.type = ObjectType::MESH;
+  bin_mesh_data.last_observed_pose = {};
+
+  MeshData bin_mesh;
+  bin_mesh.id = "bin";
+
+  objects_hash_["bin_solid"] = bin_data;
   objects_hash_["screwdriver"] = screwdriver_data;
-  registered_solid_primitives_["bin"] = bin;
+  objects_hash_["bin"] = bin_mesh_data;
+
+  registered_solid_primitives_["bin_solid"] = bin;
   registered_meshs_["screwdriver"] = screwdriver;
+  registered_meshs_["bin"] = bin_mesh;
 }
 
 
@@ -239,7 +254,7 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
   col_obj.id = object_id;
 
   std::string resource_path = "package://"+stl_location+"/"+object_id+".stl";
-  shapes::Mesh* m = shapes::createMeshFromResource("package://object_files/stl/screwdriver.stl");
+  shapes::Mesh* m = shapes::createMeshFromResource(resource_path);
 
   // Add mesh extents to register.
   Eigen::Vector3d extents = shapes::computeShapeExtents(m);
@@ -247,9 +262,6 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
   
   // Matrix representing first 
   Eigen::Matrix4d grip1 = Eigen::Matrix4d::Identity();
-  // grip1(0, 3) = extents[0]/2;
-  // grip1(1, 3) = 1.0*extents[1]/4.0;
-  // grip1(2, 3) = -extents[2]/2.2;
   objects_hash_.at(object_id).grip_transforms.push_back(grip1);
 
   shape_msgs::msg::Mesh mesh;
@@ -283,8 +295,12 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
 void TableMonitor::update_planning_scene()
 {
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+  sleep(0.2);
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
+  sleep(0.2);
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+  sleep(0.2);
 }
 
 

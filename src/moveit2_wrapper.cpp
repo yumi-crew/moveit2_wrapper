@@ -62,6 +62,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
 
   // Set planning parameters.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
+  plannning_params.planning_attempts = retries;
   plannning_params.planning_time = maximum_planning_time_;
   plannning_params.max_velocity_scaling_factor = speed_scale;
   plannning_params.max_acceleration_scaling_factor = acc_scale;
@@ -261,13 +262,22 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
+  // Should be done before planning attempts.
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+
   bool path_valid = false;
+  bool path_reaches_pose = false;
   double factor = joint_threshold_factor_;
+  std::shared_ptr<robot_trajectory::RobotTrajectory> robot_traj;
   double percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model,
                                                                            target_frame, true, cartesian_max_step_, 
                                                                            factor);
-  std::shared_ptr<robot_trajectory::RobotTrajectory> robot_traj;
-  if(percentage >= min_percentage)
+  
+  if(state_at_pose(planning_component, link, pose, eulerzyx, states.back()))
+  {
+    path_reaches_pose = true;
+  }
+  if( (path_reaches_pose) && (percentage >= min_percentage) )
   {                                                                           
     robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
                                                                                             speed_scale,acc_scale));
@@ -282,6 +292,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
           if(!scene->isStateFeasible(*x))
           {
             path_valid = false;
+            std::cout << " kkkkkkkkkkkkk not feasible" << std::endl;
             break;
           }
         }
@@ -289,16 +300,19 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     } // Unlock PlanningScene
   }
 
-  while((!path_valid) || (percentage < min_percentage))
+  while( (!path_reaches_pose) || (!path_valid) || (percentage < min_percentage))
   {
     factor += 0.5;
     percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model, 
                                                                       target_frame, true, cartesian_max_step_, factor);
-    if(percentage >= min_percentage)
+    if(state_at_pose(planning_component, link, pose, eulerzyx, states.back()))
+    {
+      path_reaches_pose = true;
+    }
+    if( (path_reaches_pose) && (percentage >= min_percentage) )
     {                                                                      
       robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
-                                                                                              speed_scale,acc_scale));
-                                                                                                   
+                                                                                              speed_scale,acc_scale));                                                                                          
       {  // Lock PlanningScene
         planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
         if(collision_checking)  path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
@@ -310,27 +324,30 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
             if(!scene->isStateFeasible(*x))
             {
               path_valid = false;
+              std::cout << " kkkkkkkkkkkkk not feasible" << std::endl;
               break;
             }
           }
         }
       }  // Unlock PlanningScene
     }
-  
     if(factor > joint_threshold_factor_limit_)
     {
-      std::cout << "[ERROR] Unable to find a valid cartesian path with minimum " << min_percentage 
-                << " linearity. Aborting.\n";
+      std::cout << "[ERROR] Unable to find a cartesian path with minimum " << min_percentage 
+                << " linearity which reaches the target pose. Aborting.\n";
       std::cout << "percentage: " << percentage << std::endl;
       std::cout << "path_valid: " << path_valid << std::endl;
+      std::cout << "path_reaches_pose: " << path_reaches_pose << std::endl;
       return false;
     }
   }
 
-  // std::cout << "percentage: " << percentage << std::endl;
-  // std::cout << "path_valid: " << path_valid << std::endl;
-  // std::cout << "number of waypoints: " << states.size() << std::endl;
-  
+  std::cout << " !!! success." << std::endl;
+  std::cout << "percentage: " << percentage << std::endl;
+  std::cout << "path_valid: " << path_valid << std::endl;
+  std::cout << "path_reaches_pose: " << path_reaches_pose << std::endl;
+
+
   // Visualize only if no other planning_components are in motion.
   if(visualize) 
   { 
@@ -581,10 +598,10 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj2.id = "desk_endre";
   shape_msgs::msg::SolidPrimitive desk2;
   desk2.type = desk2.BOX;
-  desk2.dimensions = { 0.8, 0.1, 0.75 };
+  desk2.dimensions = { 1.2, 0.1, 1.5 };
   geometry_msgs::msg::Pose desk2_pose;
-  desk2_pose.position.x =   0.15 - desk2.dimensions[0]/2.0;
-  desk2_pose.position.y = -(0.48 + desk2.dimensions[1]/2.0 - safety_margin_);
+  desk2_pose.position.x =   0.15 - desk2.dimensions[0]/2.0 + 0.10;
+  desk2_pose.position.y = -(0.48 + desk2.dimensions[1]/2.0 - 0.04);
   desk2_pose.position.z =  -0.21 + desk2.dimensions[2]/2.0;
   col_obj2.primitives.push_back(desk2);
   col_obj2.primitive_poses.push_back(desk2_pose);
@@ -613,9 +630,9 @@ void Moveit2Wrapper::construct_planning_scene()
   camera.type = camera.BOX;
   camera.dimensions = { 0.40, 0.30, 0.20 };
   geometry_msgs::msg::Pose camera_pose;
-  camera_pose.position.x = 0.10;
+  camera_pose.position.x = 0.05;
   camera_pose.position.y = 0.0;
-  camera_pose.position.z = 0.70;
+  camera_pose.position.z = 0.75;
   col_obj4.primitives.push_back(camera);
   col_obj4.primitive_poses.push_back(camera_pose);
   col_obj4.operation = col_obj4.ADD;
@@ -688,6 +705,7 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_state, std::s
 void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_pose, std::string planning_component, 
                                          std::string link_name) 
 {
+  auto start = node_->now().seconds();
   std::vector<double> errors{1, 1};
   std::vector<double> curr_pose = find_pose(link_name);
   while((errors[0] > allowed_pos_error_) || (errors[1] > allowed_or_errror_))
@@ -697,8 +715,17 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_pose, std::st
     if(errors[0] > 0.10) { sleep(1); } 
     else { sleep(0.1); }
     curr_pose = find_pose(link_name);
+
+    if( (errors[0] <= allowed_pos_error_) && (abs(4.0-errors[1]) <= allowed_or_errror_) ) break;
+
     //std::cout << "summed error, position: " << errors[0] << " summed error, orientation: " << errors[1]  << std::endl;
+    if( (node_->now().seconds()-start) > 20.0)
+    {
+      std::cout << "[ERROR] timeout, pose not reached" << std::endl;
+      break;
+    }
   }
+
 }
 
 
@@ -706,6 +733,18 @@ std::vector<double> Moveit2Wrapper::find_pose(std::string link_name)
 {
   const Eigen::Isometry3d& pose_eigen = moveit_cpp_->getCurrentState()->getGlobalLinkTransform(
       moveit_cpp_->getCurrentState()->getLinkModel(link_name));  
+  
+  geometry_msgs::msg::PoseStamped msg;
+  msg.header.frame_id = moveit_cpp_->getRobotModel()->getModelFrame();
+  msg.pose = tf2::toMsg(pose_eigen);
+  return pose_msg_to_vec(msg);
+}
+
+
+std::vector<double> Moveit2Wrapper::find_pose(std::string link_name, moveit::core::RobotStatePtr state)
+{
+  const Eigen::Isometry3d& pose_eigen = state->getGlobalLinkTransform(
+    moveit_cpp_->getCurrentState()->getLinkModel(link_name));  
   
   geometry_msgs::msg::PoseStamped msg;
   msg.header.frame_id = moveit_cpp_->getRobotModel()->getModelFrame();
@@ -768,8 +807,27 @@ bool Moveit2Wrapper::pose_reached(std::string planning_component, std::string li
   std::vector<double> errors{1, 1};
   std::vector<double> curr_pose = find_pose(link);  
   errors = sum_error(goal_pose, curr_pose);
-  std::cout << "position error: " << errors[0] << ", orientation error: " << errors[1] << std::endl;
-  if((errors[0] < allowed_pos_error_) && (errors[1] < allowed_or_errror_)) return true;
+  //std::cout << "position error: " << errors[0] << ", orientation error: " << errors[1] << std::endl;
+  if((errors[0] <= allowed_pos_error_) && (errors[1] <= allowed_or_errror_)) return true;
+  else return false;
+}
+
+bool Moveit2Wrapper::state_at_pose(std::string planning_component, std::string link, std::vector<double> pose, 
+                                  bool eulerzyx, moveit::core::RobotStatePtr state)
+{
+  if(eulerzyx)
+  {
+    std::vector<double> q_orien = eulerzyx_to_quat({pose[3], pose[4], pose[5]});
+    pose[3] = q_orien[0];
+    pose[4] = q_orien[1];
+    pose[5] = q_orien[2];
+    pose.push_back(q_orien[3]);
+  }
+  std::vector<double> errors{1, 1};
+  std::vector<double> curr_pose = find_pose(link, state);  
+  errors = sum_error(pose, curr_pose);
+  //std::cout << "position error: " << errors[0] << ", orientation error: " << errors[1] << std::endl;
+  if((errors[0] <= allowed_pos_error_) && (errors[1] <= allowed_or_errror_)) return true;
   else return false;
 }
 
@@ -907,10 +965,13 @@ void Moveit2Wrapper::disable_collision(std::string link, std::string object_id)
   // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-    scene->getAllowedCollisionMatrixNonConst().setEntry("screwdriver", true);
-  }  // Unlock PlanningScene (scopekill)  
+    scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, true);
+  }  // Unlock PlanningScene (scopekill) 
+
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE); 
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
 }
 
 
