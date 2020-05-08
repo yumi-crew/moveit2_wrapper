@@ -25,6 +25,7 @@ TableMonitor::TableMonitor(moveit::planning_interface::MoveItCppPtr moveit_cpp)
 
 bool TableMonitor::init()
 {
+  reference_frame_ = moveit_cpp_->getRobotModel()->getRootLinkName();
   populate_hash_tables();
   return true;
 }
@@ -72,10 +73,7 @@ void TableMonitor::move_object(std::string object_id, std::vector<double> pose)
   {
     move_collision_object(object_id, pose, true);
   }
-  else
-  {
-    std::cout << "not yet implemented" << std::endl;
-  }
+  else std::cout << "not yet implemented" << std::endl;
 }
 
 
@@ -95,7 +93,7 @@ std::vector<double> TableMonitor::find_collision_object(std::string object_id)
       std::cout << "Planning scene do not know the frame transform associated with the object." << std::endl;
       return {};
     }
-  }  // Unlock PlanningScene (scopekill)
+  }  // Unlock PlanningScene 
 
   pose.resize(7);
   geometry_msgs::msg::Pose pose_msg;
@@ -132,10 +130,17 @@ void TableMonitor::move_collision_object(std::string object_id, std::vector<doub
   
   obj_msg.operation = obj_msg.MOVE;
 
+  std_msgs::msg::ColorRGBA color_msg;
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    color_msg = scene->getObjectColor(object_id);
+  }
+
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->processCollisionObjectMsg(obj_msg);
-  }  // Unlock PlanningScene (scopekill)
+    scene->setObjectColor(object_id, color_msg);
+  }  // Unlock PlanningScene 
 
   if(update_scene) update_planning_scene();
 }
@@ -145,46 +150,54 @@ void TableMonitor::populate_hash_tables()
 {
   /* Manual fillout, should be replaced by config file parseing. */
 
-  // solid bin
-  ObjectData bin_data;
-  bin_data.id = "bin_solid";
-  bin_data.collision_object = true;
-  bin_data.type = ObjectType::SOLID_PRIMITIVE;
-  bin_data.last_observed_pose = {};
-
-  SolidPrimitiveData bin;
-  bin.id = "bin_solid";
-  bin.dimensions = {0.20, 0.20, 0.20};
-  bin.type = SolidPrimitiveType::BOX;
-
-  // screwdriver
+  // Screwdriver
   ObjectData screwdriver_data;
   screwdriver_data.id = "screwdriver";
   screwdriver_data.collision_object = true;
   screwdriver_data.type = ObjectType::MESH;
   screwdriver_data.last_observed_pose = {};
   screwdriver_data.grip_transforms = {};
-
   MeshData screwdriver;
   screwdriver.id = "screwdriver";
 
-  // mesh bin
-  ObjectData bin_mesh_data;
-  bin_mesh_data.id = "bin";
-  bin_mesh_data.collision_object = true;
-  bin_mesh_data.type = ObjectType::MESH;
-  bin_mesh_data.last_observed_pose = {};
+  // Bin
+  ObjectData bin_data;
+  bin_data.id = "bin";
+  bin_data.collision_object = true;
+  bin_data.type = ObjectType::MESH;
+  bin_data.last_observed_pose = {};
+  MeshData bin;
+  bin.id = "bin";
 
-  MeshData bin_mesh;
-  bin_mesh.id = "bin";
+  // Small marker
+  ObjectData small_marker_data;
+  small_marker_data.id = "small_marker";
+  small_marker_data.collision_object = true;
+  small_marker_data.type = ObjectType::MESH;
+  small_marker_data.last_observed_pose = {};
+  MeshData small_marker;
+  small_marker.id = "small_marker";
 
-  objects_hash_["bin_solid"] = bin_data;
+  // lift_hole_adapter
+  ObjectData lift_hole_adapter_data;
+  lift_hole_adapter_data.id = "lift_hole_adapter";
+  lift_hole_adapter_data.collision_object = true;
+  lift_hole_adapter_data.type = ObjectType::MESH;
+  lift_hole_adapter_data.last_observed_pose = {};
+  MeshData lift_hole_adapter;
+  lift_hole_adapter.id = "lift_hole_adapter";
+
+  // Object data registry
   objects_hash_["screwdriver"] = screwdriver_data;
-  objects_hash_["bin"] = bin_mesh_data;
+  objects_hash_["bin"] = bin_data;
+  objects_hash_["small_marker"] = small_marker_data;
+  objects_hash_["lift_hole_adapter"] = lift_hole_adapter_data;
 
-  registered_solid_primitives_["bin_solid"] = bin;
+  // Registered meshs
   registered_meshs_["screwdriver"] = screwdriver;
-  registered_meshs_["bin"] = bin_mesh;
+  registered_meshs_["bin"] = bin;
+  registered_meshs_["small_marker"] = small_marker;
+  registered_meshs_["lift_hole_adapter"] = lift_hole_adapter;
 }
 
 
@@ -197,15 +210,15 @@ void TableMonitor::update_pose_of_all_objects()
 }
 
 
-void TableMonitor::add_object_to_scene(std::string object_id, std::vector<double> pose)
+void TableMonitor::add_object_to_scene(std::string object_id, std::vector<double> pose, bool update_scene)
 {
   if(registered_solid_primitives_.find(object_id) != registered_solid_primitives_.end())
   {
-    add_primitive_object_to_scene(object_id, pose, true);
+    add_primitive_object_to_scene(object_id, pose, update_scene);
   }
   else if(registered_meshs_.find(object_id) != registered_meshs_.end())
   {
-    add_mesh_to_scene(object_id, pose, true);
+    add_mesh_to_scene(object_id, pose, update_scene);
   }
 }
 
@@ -240,7 +253,7 @@ void TableMonitor::add_primitive_object_to_scene(std::string object_id, std::vec
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->processCollisionObjectMsg(col_obj);
-  }  // Unlock PlanningScene (scopekill)
+  }  // Unlock PlanningScene 
 
   if(update_scene) update_planning_scene();
 }
@@ -286,7 +299,7 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->processCollisionObjectMsg(col_obj);
-  }  // Unlock PlanningScene (scopekill)
+  }  // Unlock PlanningScene 
 
   if(update_scene) update_planning_scene();
 }
@@ -295,12 +308,9 @@ void TableMonitor::add_mesh_to_scene(std::string object_id, std::vector<double> 
 void TableMonitor::update_planning_scene()
 {
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
-  sleep(0.2);
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
-  sleep(0.2);
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
-  sleep(0.2);
 }
 
 
@@ -309,7 +319,6 @@ void TableMonitor::remove_object_from_scene(std::string object_id, bool update_s
   moveit_msgs::msg::CollisionObject obj_msg;
   obj_msg.header.frame_id = reference_frame_; 
   obj_msg.id = object_id;
-
   obj_msg.operation = obj_msg.REMOVE;
 
   {  // Locks PlanningScene
@@ -343,8 +352,90 @@ Eigen::Matrix4d TableMonitor::get_object_global_transform(std::string object_id)
     {
       object_frame_transform = scene->getFrameTransform(object_id);
     }
-  }
+  } //unlock PlanningScene
   return object_frame_transform.matrix();
+}
+
+
+void TableMonitor::set_object_color(std::string object_id, std::vector<float> rgba)
+{
+  std_msgs::msg::ColorRGBA color;
+  color.r = rgba[0];
+  color.g = rgba[1];
+  color.b = rgba[2];
+  color.a = rgba[3];
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->setObjectColor(object_id, color);
+  } //unlock PlanningScene
+  update_planning_scene();
+}
+
+
+void TableMonitor::attach_object(std::string object_id, std::string link)
+{
+  moveit_msgs::msg::CollisionObject obj_msg;
+
+  // Get CollisionObject msg
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->getCollisionObjectMsg(obj_msg, object_id);
+  }  // Unlock PlanningScene 
+
+  // Attach msg
+  moveit_msgs::msg::AttachedCollisionObject a_obj_msg;
+  a_obj_msg.object = obj_msg;
+  a_obj_msg.link_name = link;
+
+  // Remove old msg
+  moveit_msgs::msg::CollisionObject r_obj_msg;
+  r_obj_msg.header.frame_id = moveit_cpp_->getRobotModel()->getRootLinkName();
+  r_obj_msg.id = object_id;
+  r_obj_msg.operation = obj_msg.REMOVE;
+
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->processCollisionObjectMsg(r_obj_msg);
+    scene->processAttachedCollisionObjectMsg(a_obj_msg);
+  }  
+
+  update_planning_scene();
+} 
+
+
+void TableMonitor::detatch_object(std::string object_id)
+{
+  moveit_msgs::msg::AttachedCollisionObject a_obj_msg;
+
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->getAttachedCollisionObjectMsg(a_obj_msg, object_id);
+  }  // Unlock PlanningScene 
+
+  a_obj_msg.object.operation =  a_obj_msg.object.REMOVE;
+
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->processAttachedCollisionObjectMsg(a_obj_msg);
+  }  // Unlock PlanningScene
+
+  remove_object_from_scene(object_id, false);
+  update_planning_scene();
+}
+
+
+std::string TableMonitor::object_held(std::string link)
+{
+  std::vector<moveit_msgs::msg::AttachedCollisionObject> msgs;
+  {  // Lock PlanningScene
+    planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
+    scene->getAttachedCollisionObjectMsgs(msgs);
+  }  // Unlock PlanningScene
+
+  for(auto msg : msgs)
+  {
+    if(msg.link_name == link) return msg.object.id;
+  }
 }
 
 } // namespace moveit2_wrapper

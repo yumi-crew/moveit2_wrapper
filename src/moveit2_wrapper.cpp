@@ -218,6 +218,9 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
 {
   //std::cout << "cartesian_pose_to_pose_motion() called for link '" << link << "'" << std::endl;
   
+  // Must update state and transforms before planning.
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
+
   std::shared_ptr<moveit::core::JointModelGroup> joint_group;
   const moveit::core::LinkModel* link_model;
 
@@ -494,11 +497,11 @@ bool Moveit2Wrapper::dual_arm_state_to_state_motion(std::vector<double> state_le
 
 void Moveit2Wrapper::launch_planning_scene()
 {
-  std::cout <<  "Launching the planning scene." << std::endl;
   construct_planning_scene();
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_GEOMETRY);
   sleep(1);
+  std::cout <<  "Planning scene launched." << std::endl;
 }
 
 
@@ -617,7 +620,7 @@ void Moveit2Wrapper::construct_planning_scene()
   geometry_msgs::msg::Pose pallet_pose;
   pallet_pose.position.x = 0.0;//0.22 - pallet.dimensions[0]/2.0;
   pallet_pose.position.y = 0.0;
-  pallet_pose.position.z = -pallet.dimensions[2]/2.0;
+  pallet_pose.position.z = -pallet.dimensions[2]/2.0 -0.005;
   col_obj3.primitives.push_back(pallet);
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
@@ -644,7 +647,7 @@ void Moveit2Wrapper::construct_planning_scene()
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);
     scene->processCollisionObjectMsg(col_obj4);
-  }  // Unlock PlanningScene (scopekill)
+  }  // Unlock PlanningScene 
 }
 
 
@@ -958,17 +961,15 @@ std::vector<double> Moveit2Wrapper::get_current_state(std::string planning_compo
 }
 
 
-void Moveit2Wrapper::disable_collision(std::string link, std::string object_id)
+void Moveit2Wrapper::disable_collision(std::string object_id)
 {
-  /* DOESNT WORK */
-
-  // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, true);
-  }  // Unlock PlanningScene (scopekill) 
+  }  // Unlock PlanningScene 
 
-  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
+  // Update scene
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE); 
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();

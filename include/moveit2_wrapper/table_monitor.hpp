@@ -21,6 +21,7 @@
 #include <geometric_shapes/mesh_operations.h>
 #include <geometric_shapes/shape_operations.h>
 #include <geometric_shapes/shape_messages.h>
+#include <std_msgs/msg/color_rgba.hpp>
 
 namespace moveit2_wrapper
 {
@@ -40,13 +41,17 @@ public:
   std::vector<double> find_object(std::string object_id);
 
   /* Adds a registered object to the planning scene. Pose given using quaternions. */
-  void add_object_to_scene(std::string object_id, std::vector<double> pose);
+  void add_object_to_scene(std::string object_id, std::vector<double> pose, bool update_scene=true);
 
   /* Moves a registered object to the given pose. Pose given using quaternions.*/
   void move_object(std::string object_id, std::vector<double> pose);
 
   /* Removes a registered object from the planning scene. */
   void remove_object_from_scene(std::string object_id, bool update_scene);
+
+  void attach_object(std::string object_id, std::string link);
+  void detatch_object(std::string object_id);
+  std::string object_held(std::string link);
 
   /* Returns the dimensions of a registered object. */
   std::vector<double> get_object_dimensions(std::string object_id);
@@ -56,10 +61,11 @@ public:
   std::vector<Eigen::Matrix4d> get_grip_transforms(std::string object_id)
     { return objects_hash_.at(object_id).grip_transforms; }
 
+  void set_object_color(std::string object_id, std::vector<float> rgba);
 
 private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
-  std::string reference_frame_ = "yumi_base_link";
+  std::string reference_frame_;
   std::string stl_location = "object_files/stl";
 
   enum ObjectType

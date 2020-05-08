@@ -31,6 +31,7 @@
 #include <tf2_eigen/tf2_eigen.h>
 #include <moveit/kinematic_constraints/utils.h>
 #include <moveit/trajectory_processing/iterative_spline_parameterization.h>
+#include <moveit_msgs/msg/attached_collision_object.hpp>
 
 namespace moveit2_wrapper
 {
@@ -152,11 +153,11 @@ public:
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
-
+  
   std::vector<double> quat_to_eulerzyx(std::vector<double> orientation);
 
   /* Disables collisions between a link and an object. */
-  void disable_collision(std::string link, std::string object_id);
+  void disable_collision(std::string object_id);
 
   bool gripper_closed(std::string planning_component);
   bool gripper_open(std::string planning_component);
@@ -192,7 +193,7 @@ private:
   
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
-  double allowed_state_error_ = 0.001; // summed joint state error
+  double allowed_state_error_ = 0.002; // summed joint state error
   double maximum_planning_time_ = 2.0;
   double cartesian_max_step_ = 0.005;
   double joint_threshold_factor_ = 2;
