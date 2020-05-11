@@ -989,7 +989,8 @@ bool Moveit2Wrapper::gripper_closed(std::string planning_component)
 {
   std::string ee_joint = planning_components_hash_.at(planning_component).ee_joint;
   double pos = moveit_cpp_->getCurrentState()->getVariablePosition(ee_joint);
-  if(pos < 0.002) return true;
+  std::cout << "pos: " << pos << std::endl;
+  if(pos < 0.0002) return true;
   else return false;
 }
 
