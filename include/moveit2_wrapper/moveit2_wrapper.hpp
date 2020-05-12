@@ -149,7 +149,8 @@ public:
      {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
   std::vector<double> find_pose(std::string link_name);
 
-  Eigen::Matrix4d find_pose_matrix(std::string link_name);
+  /* Returns whether the given link can reach the given pose. */                     
+  bool pose_valid(std::string planning_component, std::string link, std::vector<double> pose, bool eulerzyx);
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
@@ -236,8 +237,8 @@ private:
   bool state_at_pose(std::string planning_component, std::string link, std::vector<double> pose, 
                      bool eulerzyx, moveit::core::RobotStatePtr state);
 
-  /* Returns whether the given link can reach the given pose. */                     
-  bool pose_valid(std::string planning_component, std::string link, std::vector<double> pose, bool eulerzyx);
+  /* Returns the transformation from base to the given link. */
+  Eigen::Matrix4d find_pose_matrix(std::string link_name);
 };
 
 } // namespace moveit2_wrapper
