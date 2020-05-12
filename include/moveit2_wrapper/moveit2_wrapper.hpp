@@ -208,10 +208,9 @@ private:
   double sum_error(std::vector<double>& goal_state, std::string& planning_component);
   std::vector<double> sum_error(std::vector<double>& goal_pose, std::vector<double>& curr_pose);
 
-  void block_until_reached(std::vector<double>& goal_state, std::string planning_component);
-  
   /* Expects pose using quaterions. */
   void block_until_reached(std::vector<double>& goal_pose, std::string planning_component, std::string link_name);
+  void block_until_reached(std::vector<double>& goal_state, std::string planning_component);
 
   /**
    * Visualizes a computed trajectory. Return true if the visualization was allowed to compelete, false if not.
@@ -230,9 +229,15 @@ private:
                                                            std::string planning_component, double speed_scale,
                                                            double acc_scale);
   
+  /* Returns the pose of the given link with the robot in the given RobotState. */
   std::vector<double> find_pose(std::string link_name, robot_state::RobotStatePtr state);
+
+  /* Returns whether the given link, in the given RobotState, is at the given pose. */
   bool state_at_pose(std::string planning_component, std::string link, std::vector<double> pose, 
                      bool eulerzyx, moveit::core::RobotStatePtr state);
+
+  /* Returns whether the given link can reach the given pose. */                     
+  bool pose_valid(std::string planning_component, std::string link, std::vector<double> pose, bool eulerzyx);
 };
 
 } // namespace moveit2_wrapper

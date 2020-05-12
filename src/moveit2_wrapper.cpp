@@ -25,7 +25,6 @@ bool Moveit2Wrapper::init()
 { 
   robot_state_publisher_ = node_->create_publisher<moveit_msgs::msg::DisplayRobotState>("display_robot_state", 1);
   
-  // Using the moveit_cpp API
   moveit_cpp_ = std::make_shared<moveit::planning_interface::MoveItCpp>(node_);
   moveit_cpp_->getPlanningSceneMonitor()->setPlanningScenePublishingFrequency(100);
   populate_hash_tables();
@@ -126,8 +125,8 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
 {
   //std::cout << "pose_to_pose_motion() called for planning_component '" << planning_component << "'" << std::endl;
 
-  if(!planning_components_hash_.at(planning_component).joint_group->hasLinkModel(link) && 
-      link!=planning_components_hash_.at(planning_component).ee_link)
+  if( (!planning_components_hash_.at(planning_component).joint_group->hasLinkModel(link)) && 
+      (link!=planning_components_hash_.at(planning_component).ee_link) )
   {
     std::cout << "[ERROR] Link must be a member of the joint group or be the registered end-effector link."<< std::endl;
     return false;
@@ -143,8 +142,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
   }
 
   // Set goal
-  if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, 
-     planning_components_hash_.at(planning_component).ee_link))
+  if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, link)
   {
     std::cout << "[ERROR] Unable to set goal for planning component '" << planning_component << "'." << std::endl;
     return false;
@@ -217,14 +215,11 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
                                                    
 {
   //std::cout << "cartesian_pose_to_pose_motion() called for link '" << link << "'" << std::endl;
-  
-  // Must update state and transforms before planning.
-  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
 
   std::shared_ptr<moveit::core::JointModelGroup> joint_group;
   const moveit::core::LinkModel* link_model;
 
-  // Find the correct joint_group.
+  // Find the correct joint_group. Link must be the last link of its joint_group for a cartesian path to be computed.
   std::string last_link = planning_components_hash_.at(planning_component).joint_group->getLinkModelNames().back();
   bool found = false;
   if(last_link != link)
@@ -265,7 +260,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
-  // Should be done before planning attempts.
+  // Should be done before any planning. Normally performed by planning component's plan(..)
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
 
   bool path_valid = false;
@@ -295,7 +290,6 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
           if(!scene->isStateFeasible(*x))
           {
             path_valid = false;
-            std::cout << " kkkkkkkkkkkkk not feasible" << std::endl;
             break;
           }
         }
@@ -327,7 +321,6 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
             if(!scene->isStateFeasible(*x))
             {
               path_valid = false;
-              std::cout << " kkkkkkkkkkkkk not feasible" << std::endl;
               break;
             }
           }
@@ -578,7 +571,7 @@ void Moveit2Wrapper::populate_hash_tables()
 
 void Moveit2Wrapper::construct_planning_scene()
 {
-  /* Manual loading of model of the robots enviroment. */
+  /* Manual loading of model of the robots enviroment. Should be loaded from a config file. */
 
   // Adding "desk_marius" - box representing Marius' desk.
   moveit_msgs::msg::CollisionObject col_obj;
@@ -735,6 +728,7 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_pose, std::st
     else { sleep(0.1); }
     curr_pose = find_pose(link_name);
 
+    // Handle flipped quaternions (sum = 4 instead of 1)
     if( (errors[0] <= allowed_pos_error_) && (abs(4.0-errors[1]) <= allowed_or_errror_) ) break;
 
     //std::cout << "summed error, position: " << errors[0] << " summed error, orientation: " << errors[1]  << std::endl;
@@ -979,7 +973,11 @@ std::vector<double> Moveit2Wrapper::get_current_state(std::string planning_compo
 
 void Moveit2Wrapper::disable_collision(std::string object_id)
 {
-   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+  // Ensure the scene is updated.
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
+    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
+  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
    
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
@@ -1019,6 +1017,56 @@ bool Moveit2Wrapper::gripper_open(std::string planning_component)
   double pos = moveit_cpp_->getCurrentState()->getVariablePosition(ee_joint);
   if(pos > 0.019) return true;
   else return false;
+}
+
+
+bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,std::vector<double> pose,bool eulerzyx)
+{
+  if( (!planning_components_hash_.at(planning_component).joint_group->hasLinkModel(link)) && 
+      (link!=planning_components_hash_.at(planning_component).ee_link) )
+  {
+    std::cout << "[ERROR] Link must be a member of the joint group or be the registered end-effector link."<< std::endl;
+    return false;
+  }
+
+  if(eulerzyx)
+  {
+    std::vector<double> quat = eulerzyx_to_quat({pose[0], pose[1], pose[2]})
+    pose[3] = quat[0];
+    pose[4] = quat[1];
+    pose[5] = quat[2];
+    pose.push_back(quat[3]);
+  }
+  geometry_msgs::msg::PoseStamped msg = pose_vec_to_msg(pose, eulerzyx);
+
+  // Plan a random path to the pose.
+
+  if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, link))
+  {
+    // If unable to set goal, we are unable to verify if the pose is valid. Return false.
+    return false;
+  }
+
+  // Find random plan. If able to plan, the pose is valid.
+  int retries_allowed = 3;
+  int retries_left = retries_allowed;
+  auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan();
+  while(!planned_solution)
+  {
+    if(retries_left) 
+    {
+      retries_left--;
+      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan();
+    }
+    else
+    {
+      // If unable to plan to the pose, the pose is not valid. Return false.
+      return false;
+    } 
+  }
+
+  // If able to plan to the pose, the pose is valid. Return true.
+  return true;
 }
 
 } // namepsace moveit2_wrapper
