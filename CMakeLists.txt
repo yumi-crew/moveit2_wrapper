@@ -33,7 +33,7 @@ ament_target_dependencies(moveit2_wrapper
 )
 # table_monitor
 add_library(table_monitor SHARED src/table_monitor.cpp)
-target_link_libraries(table_monitor PRIVATE)
+target_link_libraries(table_monitor libstdc++fs.a)
 target_include_directories(table_monitor PRIVATE include)
 ament_target_dependencies(table_monitor
                           moveit_ros_planning_interface

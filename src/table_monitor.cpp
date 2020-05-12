@@ -148,56 +148,41 @@ void TableMonitor::move_collision_object(std::string object_id, std::vector<doub
 
 void TableMonitor::populate_hash_tables()
 {
-  /* Manual fillout, should be replaced by config file parseing. */
+  char *buf = getlogin();
+  std::string u_name = buf;
+  std::string path = "/home/" + u_name + "/abb_ws/src/object_files/stl/";
+  register_models(path);
+}
 
-  // Screwdriver
-  ObjectData screwdriver_data;
-  screwdriver_data.id = "screwdriver";
-  screwdriver_data.collision_object = true;
-  screwdriver_data.type = ObjectType::MESH;
-  screwdriver_data.last_observed_pose = {};
-  screwdriver_data.grip_transforms = {};
-  MeshData screwdriver;
-  screwdriver.id = "screwdriver";
 
-  // Bin
-  ObjectData bin_data;
-  bin_data.id = "bin";
-  bin_data.collision_object = true;
-  bin_data.type = ObjectType::MESH;
-  bin_data.last_observed_pose = {};
-  MeshData bin;
-  bin.id = "bin";
+void TableMonitor::register_models(std::string path_to_models_dir)
+{
+  std::string extension;
+  std::string model_path;
+  for (const auto &entry : std::experimental::filesystem::directory_iterator(path_to_models_dir))
+  {
+    extension = entry.path().string().substr(entry.path().string().find(".") + 1, 3);
+    if (extension.compare("stl") == 0)
+    {
+      model_path = entry.path().string();
+      std::cout << "register_model: "  << model_path << ", ";
+      
+      std::string name = model_path.substr(model_path.find_last_of("/") + 1);
+      name = name.substr(0, name.find("."));
+      std::cout << "as: " << name << std::endl;
+  
+      ObjectData object_data;
+      object_data.id = name;
+      object_data.collision_object = true;
+      object_data.type = ObjectType::MESH;
+      
+      MeshData mesh_data;
+      mesh_data.id = name;
 
-  // Small marker
-  ObjectData small_marker_data;
-  small_marker_data.id = "small_marker";
-  small_marker_data.collision_object = true;
-  small_marker_data.type = ObjectType::MESH;
-  small_marker_data.last_observed_pose = {};
-  MeshData small_marker;
-  small_marker.id = "small_marker";
-
-  // lift_hole_adapter
-  ObjectData lift_hole_adapter_data;
-  lift_hole_adapter_data.id = "lift_hole_adapter";
-  lift_hole_adapter_data.collision_object = true;
-  lift_hole_adapter_data.type = ObjectType::MESH;
-  lift_hole_adapter_data.last_observed_pose = {};
-  MeshData lift_hole_adapter;
-  lift_hole_adapter.id = "lift_hole_adapter";
-
-  // Object data registry
-  objects_hash_["screwdriver"] = screwdriver_data;
-  objects_hash_["bin"] = bin_data;
-  objects_hash_["small_marker"] = small_marker_data;
-  objects_hash_["lift_hole_adapter"] = lift_hole_adapter_data;
-
-  // Registered meshs
-  registered_meshs_["screwdriver"] = screwdriver;
-  registered_meshs_["bin"] = bin;
-  registered_meshs_["small_marker"] = small_marker;
-  registered_meshs_["lift_hole_adapter"] = lift_hole_adapter;
+      objects_hash_[name] = object_data;
+      registered_meshs_[name] = mesh_data;
+    }
+  }
 }
 
 

@@ -22,6 +22,8 @@
 #include <geometric_shapes/shape_operations.h>
 #include <geometric_shapes/shape_messages.h>
 #include <std_msgs/msg/color_rgba.hpp>
+#include <experimental/filesystem>
+#include <unistd.h>
 
 namespace moveit2_wrapper
 {
@@ -66,7 +68,7 @@ public:
 private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
   std::string reference_frame_;
-  std::string stl_location = "object_files/stl";
+  std::string stl_location = "object_files/stl/";
 
   enum ObjectType
   {
@@ -126,6 +128,8 @@ private:
 
   /* Moves a registered collision object to a new pose. */
   void move_collision_object(std::string object_id, std::vector<double> new_pose, bool update_scene);
+
+  void register_models(std::string path_to_models_dir);
 };
 
 } // namespace moveit2_wrapper

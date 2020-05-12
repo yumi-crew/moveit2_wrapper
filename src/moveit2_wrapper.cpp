@@ -620,7 +620,7 @@ void Moveit2Wrapper::construct_planning_scene()
   geometry_msgs::msg::Pose pallet_pose;
   pallet_pose.position.x = 0.0;//0.22 - pallet.dimensions[0]/2.0;
   pallet_pose.position.y = 0.0;
-  pallet_pose.position.z = -pallet.dimensions[2]/2.0 -0.005;
+  pallet_pose.position.z = -pallet.dimensions[2]/2.0 + 0.04;
   col_obj3.primitives.push_back(pallet);
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
@@ -963,6 +963,8 @@ std::vector<double> Moveit2Wrapper::get_current_state(std::string planning_compo
 
 void Moveit2Wrapper::disable_collision(std::string object_id)
 {
+   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
+   
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
     scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, true);
