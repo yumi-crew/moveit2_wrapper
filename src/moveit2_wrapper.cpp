@@ -603,8 +603,8 @@ void Moveit2Wrapper::construct_planning_scene()
   desk2.type = desk2.BOX;
   desk2.dimensions = { 1.2, 0.1, 1.5 };
   geometry_msgs::msg::Pose desk2_pose;
-  desk2_pose.position.x =   0.15 - desk2.dimensions[0]/2.0 + 0.10;
-  desk2_pose.position.y = -(0.48 + desk2.dimensions[1]/2.0 - 0.04);
+  desk2_pose.position.x =   0.25 - desk2.dimensions[0]/2.0;
+  desk2_pose.position.y = -(0.47 + desk2.dimensions[1]/2.0);
   desk2_pose.position.z =  -0.21 + desk2.dimensions[2]/2.0;
   col_obj2.primitives.push_back(desk2);
   col_obj2.primitive_poses.push_back(desk2_pose);
@@ -616,11 +616,11 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj3.id = "pallet";
   shape_msgs::msg::SolidPrimitive pallet;
   pallet.type = pallet.BOX;
-  pallet.dimensions = { 2, 0.70, 0.12 };
+  pallet.dimensions = { 0.85, 0.70, 0.12 };
   geometry_msgs::msg::Pose pallet_pose;
-  pallet_pose.position.x = 0.0;//0.22 - pallet.dimensions[0]/2.0;
+  pallet_pose.position.x = 0.22 - pallet.dimensions[0]/2.0;
   pallet_pose.position.y = 0.0;
-  pallet_pose.position.z = -pallet.dimensions[2]/2.0 + 0.04;
+  pallet_pose.position.z = -(0.09+pallet.dimensions[2]/2.0);
   col_obj3.primitives.push_back(pallet);
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
@@ -640,6 +640,21 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj4.primitive_poses.push_back(camera_pose);
   col_obj4.operation = col_obj4.ADD;
 
+  // Adding "table" - box representing the table to pick from.
+  moveit_msgs::msg::CollisionObject col_obj5;
+  col_obj5.header.frame_id = "yumi_base_link"; 
+  col_obj5.id = "table";
+  shape_msgs::msg::SolidPrimitive table;
+  table.type = table.BOX;
+  table.dimensions = { 0.67, 0.65, 0.01 };
+  geometry_msgs::msg::Pose table_pose;
+  table_pose.position.x = 0.13 + table.dimensions[0]/2.0;
+  table_pose.position.y = -0.20;
+  table_pose.position.z = 0.04;
+  col_obj5.primitives.push_back(table);
+  col_obj5.primitive_poses.push_back(table_pose);
+  col_obj5.operation = col_obj5.ADD;
+
   // Adding objects to planning scene
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
@@ -647,6 +662,7 @@ void Moveit2Wrapper::construct_planning_scene()
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);
     scene->processCollisionObjectMsg(col_obj4);
+    scene->processCollisionObjectMsg(col_obj5);
   }  // Unlock PlanningScene 
 }
 
