@@ -158,7 +158,7 @@ public:
   std::vector<double> quat_to_eulerzyx(std::vector<double> orientation);
 
   /* Disables collisions between a link and an object. */
-  void disable_collision(std::string object_id);
+  void disable_collision(std::string object_id, bool allow, std::string link={});
 
   bool gripper_closed(std::string planning_component);
   bool gripper_open(std::string planning_component);
@@ -195,8 +195,8 @@ private:
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.002; // summed joint state error
-  double maximum_planning_time_ = 2.0;
-  double cartesian_max_step_ = 0.005;
+  double maximum_planning_time_ = 0.5;
+  double cartesian_max_step_ = 0.003;
   double joint_threshold_factor_ = 2;
   double joint_threshold_factor_limit_ = 6;
   std::string planning_pipeline_ = "ompl";

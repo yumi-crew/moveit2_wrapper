@@ -142,7 +142,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
   }
 
   // Set goal
-  if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, link)
+  if(!planning_components_hash_.at(planning_component).planning_component->setGoal(msg, link))
   {
     std::cout << "[ERROR] Unable to set goal for planning component '" << planning_component << "'." << std::endl;
     return false;
@@ -639,11 +639,11 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj5.id = "table";
   shape_msgs::msg::SolidPrimitive table;
   table.type = table.BOX;
-  table.dimensions = { 0.67, 0.65, 0.01 };
+  table.dimensions = { 0.67, 0.65, 0.20 };
   geometry_msgs::msg::Pose table_pose;
   table_pose.position.x = 0.13 + table.dimensions[0]/2.0;
-  table_pose.position.y = -0.20;
-  table_pose.position.z = 0.04;
+  table_pose.position.y = -0.10;
+  table_pose.position.z = 0.052 - table.dimensions[2]/2.0;
   col_obj5.primitives.push_back(table);
   col_obj5.primitive_poses.push_back(table_pose);
   col_obj5.operation = col_obj5.ADD;
@@ -971,21 +971,15 @@ std::vector<double> Moveit2Wrapper::get_current_state(std::string planning_compo
 }
 
 
-void Moveit2Wrapper::disable_collision(std::string object_id)
-{
-  // Ensure the scene is updated.
-  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
-  moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
-    planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE);
-  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms(); 
-   
+void Moveit2Wrapper::disable_collision(std::string object_id, bool allow, std::string link)
+{ 
   {  // Lock PlanningScene
     planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-    scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, true);
+    if(!link.empty()) scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, link, allow);
+    else scene->getAllowedCollisionMatrixNonConst().setEntry(object_id, allow);
   }  // Unlock PlanningScene 
 
   // Update scene
-  moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
   moveit_cpp_->getPlanningSceneMonitor()->triggerSceneUpdateEvent(
     planning_scene_monitor::PlanningSceneMonitor::SceneUpdateType::UPDATE_SCENE); 
   moveit_cpp_->getPlanningSceneMonitor()->updateFrameTransforms();
@@ -1031,7 +1025,7 @@ bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,
 
   if(eulerzyx)
   {
-    std::vector<double> quat = eulerzyx_to_quat({pose[0], pose[1], pose[2]})
+    std::vector<double> quat = eulerzyx_to_quat({pose[0], pose[1], pose[2]});
     pose[3] = quat[0];
     pose[4] = quat[1];
     pose[5] = quat[2];
@@ -1047,16 +1041,21 @@ bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,
     return false;
   }
 
+  // Set planning parameteres.
+  moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
+  plannning_params.planning_time = maximum_planning_time_;
+  plannning_params.planning_pipeline = planning_pipeline_;
+
   // Find random plan. If able to plan, the pose is valid.
-  int retries_allowed = 3;
+  int retries_allowed = 1;
   int retries_left = retries_allowed;
-  auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan();
+  auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
   while(!planned_solution)
   {
     if(retries_left) 
     {
       retries_left--;
-      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan();
+      planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
     }
     else
     {
