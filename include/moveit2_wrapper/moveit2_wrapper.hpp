@@ -162,6 +162,7 @@ public:
 
   bool gripper_closed(std::string planning_component);
   bool gripper_open(std::string planning_component);
+  double gripper_pos(std::string planning_component);
 
   struct PlanningComponentInfo
   {
