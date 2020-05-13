@@ -643,7 +643,7 @@ void Moveit2Wrapper::construct_planning_scene()
   geometry_msgs::msg::Pose table_pose;
   table_pose.position.x = 0.13 + table.dimensions[0]/2.0;
   table_pose.position.y = -0.10;
-  table_pose.position.z = 0.052 - table.dimensions[2]/2.0;
+  table_pose.position.z = 0.051 - table.dimensions[2]/2.0;
   col_obj5.primitives.push_back(table);
   col_obj5.primitive_poses.push_back(table_pose);
   col_obj5.operation = col_obj5.ADD;
