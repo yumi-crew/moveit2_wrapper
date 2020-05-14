@@ -1000,7 +1000,7 @@ bool Moveit2Wrapper::gripper_closed(std::string planning_component)
   std::string ee_joint = planning_components_hash_.at(planning_component).ee_joint;
   double pos = moveit_cpp_->getCurrentState()->getVariablePosition(ee_joint);
   std::cout << "pos: " << pos << std::endl;
-  if(pos < 0.0002) return true;
+  if(pos < 0.002) return true;
   else return false;
 }
 
@@ -1023,6 +1023,8 @@ double Moveit2Wrapper::gripper_pos(std::string planning_component)
 
 bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,std::vector<double> pose,bool eulerzyx)
 {
+  std::cout << "pose_valid() called for planning_component '" << planning_component << "'" << std::endl;
+  
   if( (!planning_components_hash_.at(planning_component).joint_group->hasLinkModel(link)) && 
       (link!=planning_components_hash_.at(planning_component).ee_link) )
   {
