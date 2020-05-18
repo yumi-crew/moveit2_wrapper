@@ -193,9 +193,11 @@ private:
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
   
+  // Timing constants for blocking motion
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.002; // summed joint state error
+ 
   double maximum_planning_time_ = 0.5;
   double cartesian_max_step_ = 0.002;
   double joint_threshold_factor_ = 2;
