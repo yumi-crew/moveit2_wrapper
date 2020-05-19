@@ -256,7 +256,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     pose[4] = msg.pose.orientation.y;
     pose[5] = msg.pose.orientation.z;
     pose.push_back(msg.pose.orientation.w);
-  }
+  } // After this point, the pose is always using quaternions
   tf2::convert(msg.pose, target_frame);
   std::vector<moveit::core::RobotStatePtr> states;
 
@@ -271,7 +271,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
                                                                            target_frame, true, cartesian_max_step_, 
                                                                            factor);
   
-  if(state_at_pose(planning_component, link, pose, eulerzyx, states.back()))
+  if(state_at_pose(planning_component, link, pose, false, states.back()))
   {
     path_reaches_pose = true;
   }
@@ -302,7 +302,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     factor += 0.5;
     percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model, 
                                                                       target_frame, true, cartesian_max_step_, factor);
-    if(state_at_pose(planning_component, link, pose, eulerzyx, states.back()))
+    if(state_at_pose(planning_component, link, pose, false, states.back()))
     {
       path_reaches_pose = true;
     }
