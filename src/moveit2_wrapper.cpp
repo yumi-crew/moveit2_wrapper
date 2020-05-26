@@ -331,17 +331,14 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     {
       std::cout << "[ERROR] Unable to find a cartesian path with minimum " << min_percentage 
                 << " linearity which reaches the target pose. Aborting.\n";
-      std::cout << "percentage: " << percentage << std::endl;
-      std::cout << "path_valid: " << path_valid << std::endl;
-      std::cout << "path_reaches_pose: " << path_reaches_pose << std::endl;
       return false;
     }
   }
 
-  std::cout << " !!! success." << std::endl;
-  std::cout << "percentage: " << percentage << std::endl;
-  std::cout << "path_valid: " << path_valid << std::endl;
-  std::cout << "path_reaches_pose: " << path_reaches_pose << std::endl;
+  // std::cout << "Linear path found." << std::endl;
+  // std::cout << "percentage: " << percentage << std::endl;
+  // std::cout << "path_valid: " << path_valid << std::endl;
+  // std::cout << "path_reaches_pose: " << path_reaches_pose << std::endl;
 
 
   // Visualize only if no other planning_components are in motion.
@@ -738,7 +735,6 @@ void Moveit2Wrapper::block_until_reached(std::vector<double>& goal_pose, std::st
       break;
     }
   }
-
 }
 
 
@@ -918,7 +914,6 @@ std::vector<double> Moveit2Wrapper::pose_msg_to_vec(geometry_msgs::msg::Pose msg
   vec[6] = msg.orientation.w;
   return vec;
 }
-
 
 
 robot_trajectory::RobotTrajectory 

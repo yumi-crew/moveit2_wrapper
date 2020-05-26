@@ -42,9 +42,9 @@ public:
   Moveit2Wrapper(std::shared_ptr<rclcpp::Node> node);
 
   /** 
-   * Initializes the wrapper: initializes the planning interface and sets up the necessary publishers and subscriptions.
+   * Initializes the planning interface and sets up the necessary publishers and subscriptions.
    * 
-   * @return true if the initialization is succesfull. False indicate failure.
+   * @return bool indicating if the initialization is succesfull. 
    */
   bool init();
 
@@ -61,7 +61,7 @@ public:
    * @param speed_scale scaling factor used to scale the velocity of the trajectory.
    * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
    * 
-   * @return true if the planner was able to plan to the goal.
+   * @return bool indicating if the planner was able to plan to the goal.
    */
   bool pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
                            bool eulerzyx=false, int retries=0, bool visualize=true, bool vis_abortable=false, 
@@ -80,7 +80,7 @@ public:
    * @param speed_scale scaling factor used to scale the velocity of the trajectory.
    * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
    * 
-   * @return true if the planner was able to plan to the goal.
+   * @return bool indicating if the planner was able to plan to the goal.
    */
   bool cartesian_pose_to_pose_motion(std::string planning_component, std::string link, std::vector<double> pose, 
                                      bool eulerzyx=false, bool visualize=true, bool vis_abortable=false,  
@@ -88,7 +88,7 @@ public:
                                      double speed_scale=1, double acc_scale=1);
                                     
   /**
-   * State-to-state motion of a planning component. 
+   * @brief State-to-state motion of a planning component. 
    * 
    * @param state 7D-vector, desired joint configuration. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
@@ -98,7 +98,7 @@ public:
    * @param speed_scale scaling factor used to scale the velocity of the trajectory.
    * @param acc_scale scaling factor used to scale the acceleration of the trajectory.
    * 
-   * @return true if the planner was able to plan to the goal.
+   * @return bool indicating if the planner was able to plan to the goal.
    */
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
                             bool visualize=true, bool vis_abortable=false, bool blocking=true, double speed_scale=1, 
@@ -106,7 +106,7 @@ public:
 
 
   /** 
-   * Hardcoded dual arm state-to-state motion for the ABB YuMi.
+   * [ABB YuMi specific] Dual arm state-to-state motion for the ABB YuMi.
    * 
    * @param state_left 7D-vector, desired joint configuration of the left arm. [radians]
    * @param state_right 7D-vector, desired joint configuration of the riht arm. [radians]
@@ -115,7 +115,7 @@ public:
    *                  Visualization is only available when no other planning_component is in motion.
    * @param blocking flag indicating if the function call should be blocking.
    * 
-   * @return true if the planner was able to plan to the goal.
+   * @return bool indicating if the planner was able to plan to the goal.
    */
   bool dual_arm_state_to_state_motion(std::vector<double> state_left, std::vector<double> state_right, int retries=0, 
                                       bool visualize=true, bool blocking=true);
@@ -134,27 +134,29 @@ public:
   /* Determines if a given state is reached by the planning component. */
   bool state_reached(std::string planning_component, std::vector<double> goal_state);
 
-  /** 
-   * Returns the pose given by a vector as a pose msg.
-   * 
-   * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
-   *                 instead of quaternions.
-   */
-  geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
+  /* Returns a bool indicating if the given link can reach the given pose. */                     
+  bool pose_valid(std::string planning_component, std::string link, std::vector<double> pose, bool eulerzyx);
 
-  /* Returns the current configuration of the joints og the given planning component. */ 
+  /* Gives the current configuration of the joints of the given planning component. */ 
   std::vector<double> get_current_state(std::string planning_component);
 
   /* Gives the pose of a desired link. [position given in meters, orientation in quaternions]
      {x_pos, y_pos, z_pos, x_quat, y_quat, z_quat, w_quat} */
   std::vector<double> find_pose(std::string link_name);
 
-  /* Returns whether the given link can reach the given pose. */                     
-  bool pose_valid(std::string planning_component, std::string link, std::vector<double> pose, bool eulerzyx);
+  /** 
+   * Gives the pose given by a vector as a gemotry_msgs::msg::Pose msg.
+   * 
+   * @param eulerzyx flag indicating if the vector represent orientation using ZYX-Euler angles [degrees] 
+   *                 instead of quaternions.
+   */
+  geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
+
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
   
+  /* Converts an orientation given in quaternions to one given in ZYX-Euler angles [degrees]. */
   std::vector<double> quat_to_eulerzyx(std::vector<double> orientation);
 
   /* Disables collisions between a link and an object. */
@@ -168,32 +170,32 @@ public:
   {
     std::shared_ptr<moveit::planning_interface::PlanningComponent> planning_component;
     std::shared_ptr<moveit::core::JointModelGroup> joint_group;
-    uint num_joints;
-    std::vector<std::string> joint_names;
+    std::unordered_map<std::string, std::shared_ptr<moveit::core::JointModelGroup>> secondary_joint_groups;
     rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr trajectory_publisher;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_signal_publisher;
     bool in_motion;
     bool should_replan;
+    uint num_joints;
     std::string ee_link;
     std::string ee_joint;
+    std::vector<std::string> joint_names;
     std::vector<double> home_configuration;
-    std::unordered_map<std::string, std::shared_ptr<moveit::core::JointModelGroup>> secondary_joint_groups;
   };
   
   std::unordered_map<std::string, PlanningComponentInfo>* get_planning_components_hash()
     { return &planning_components_hash_; };
 
-  moveit::planning_interface::MoveItCppPtr get_moveit_cpp(){ return moveit_cpp_; };
+  moveit::planning_interface::MoveItCppPtr get_planning_interface(){ return moveit_cpp_; };
 
 private:
   std::shared_ptr<rclcpp::Node> node_;
-  rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
-
+  rclcpp::Publisher<moveit_msgs::msg::DisplayRobotState>::SharedPtr robot_state_publisher_;
+ 
   std::unordered_map<std::string, PlanningComponentInfo> planning_components_hash_;
   std::unordered_map<std::string, double> joint_states_hash_;
   
-  // Timing constants for blocking motion
+  // Used for timing purposes
   double allowed_pos_error_ = 0.002; // 2 mm
   double allowed_or_errror_ = 0.015; // summed quaternion error
   double allowed_state_error_ = 0.002; // summed joint state error
@@ -236,7 +238,7 @@ private:
   /* Returns the pose of the given link with the robot in the given RobotState. */
   std::vector<double> find_pose(std::string link_name, robot_state::RobotStatePtr state);
 
-  /* Returns whether the given link, in the given RobotState, is at the given pose. */
+  /* Returns a bool indicating if the given link, in the given RobotState, is at the given pose. */
   bool state_at_pose(std::string planning_component, std::string link, std::vector<double> pose, 
                      bool eulerzyx, moveit::core::RobotStatePtr state);
 

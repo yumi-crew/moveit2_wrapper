@@ -31,11 +31,11 @@ ament_target_dependencies(moveit2_wrapper
                           angles
                           tf2_eigen                                                 
 )
-# table_monitor
-add_library(table_monitor SHARED src/table_monitor.cpp)
-target_link_libraries(table_monitor libstdc++fs.a)
-target_include_directories(table_monitor PRIVATE include)
-ament_target_dependencies(table_monitor
+# object_manager
+add_library(object_manager SHARED src/object_manager.cpp)
+target_link_libraries(object_manager libstdc++fs.a)
+target_include_directories(object_manager PRIVATE include)
+ament_target_dependencies(object_manager
                           moveit_ros_planning_interface
                           moveit_msgs
                           Boost
@@ -48,13 +48,13 @@ ament_target_dependencies(table_monitor
 install(DIRECTORY include/ DESTINATION include)
 
 install(TARGETS moveit2_wrapper 
-                table_monitor
+                object_manager
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
 )
 
-ament_export_libraries(moveit2_wrapper table_monitor)
+ament_export_libraries(moveit2_wrapper object_manager)
 ament_export_include_directories(include)
 ament_export_dependencies(moveit_ros_planning_interface moveit_msgs)
 ament_package()
