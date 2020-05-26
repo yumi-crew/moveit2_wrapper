@@ -88,7 +88,7 @@ public:
                                      double speed_scale=1, double acc_scale=1);
                                     
   /**
-   * @brief State-to-state motion of a planning component. 
+   * State-to-state motion of a planning component. 
    * 
    * @param state 7D-vector, desired joint configuration. [radians]
    * @param retries number of allowed attempts at planning a trajectory.
@@ -103,7 +103,6 @@ public:
   bool state_to_state_motion(std::string planning_component, std::vector<double> state, int retries=0, 
                             bool visualize=true, bool vis_abortable=false, bool blocking=true, double speed_scale=1, 
                             double acc_scale=1);
-
 
   /** 
    * [ABB YuMi specific] Dual arm state-to-state motion for the ABB YuMi.
@@ -151,7 +150,6 @@ public:
    *                 instead of quaternions.
    */
   geometry_msgs::msg::PoseStamped pose_vec_to_msg(std::vector<double> pose, bool eulerzyx);
-
 
   /* Converts an orientation given in ZYX-Euler angles [degrees] to one given by quaternions.*/
   std::vector<double> eulerzyx_to_quat(std::vector<double> orientation);
