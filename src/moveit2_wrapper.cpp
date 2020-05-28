@@ -266,44 +266,46 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
   bool path_valid = false;
   bool path_reaches_pose = false;
   double factor = joint_threshold_factor_;
+  std::shared_ptr<robot_trajectory::RobotTrajectory> robot_path;
   std::shared_ptr<robot_trajectory::RobotTrajectory> robot_traj;
   double percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model,
                                                                            target_frame, true, cartesian_max_step_, 
                                                                            factor);
   
-  if(state_at_pose(planning_component, link, pose, false, states.back()))
-  {
-    path_reaches_pose = true;
-  }
+  if(state_at_pose(planning_component, link, pose, false, states.back())) path_reaches_pose = true;
+
   if( (path_reaches_pose) && (percentage >= min_percentage) )
   {                                                                           
-    robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
-                                                                                            speed_scale,acc_scale));
+    robot_path = std::make_shared<robot_trajectory::RobotTrajectory>(to_robot_trajectory(states, planning_component));
     { // Lock PlanningScene
       planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-      if(collision_checking) path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+      if(collision_checking) path_valid = scene->isPathValid(*robot_path.get(), planning_component);
       else path_valid = true;
     } // Unlock PlanningScene
+    if (path_valid) robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,
+                                                                                     planning_component, speed_scale,
+                                                                                     acc_scale));
   }
 
   while( (!path_reaches_pose) || (!path_valid) || (percentage < min_percentage))
   {
-    factor += 0.5;
+    factor += 1.0;
     percentage = moveit_cpp_->getCurrentState()->computeCartesianPath(joint_group.get(), states, link_model, 
                                                                       target_frame, true, cartesian_max_step_, factor);
-    if(state_at_pose(planning_component, link, pose, false, states.back()))
-    {
-      path_reaches_pose = true;
-    }
+    
+    if(state_at_pose(planning_component, link, pose, false, states.back()))  path_reaches_pose = true;
+   
     if( (path_reaches_pose) && (percentage >= min_percentage) )
     {                                                                      
-      robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,planning_component,
-                                                                                              speed_scale,acc_scale));                                                                                          
+      robot_path = std::make_shared<robot_trajectory::RobotTrajectory>(to_robot_trajectory(states, planning_component));
       {  // Lock PlanningScene
         planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
-        if(collision_checking)  path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
+        if(collision_checking)  path_valid = scene->isPathValid(*robot_path.get(), planning_component);
         else path_valid = true;
       }  // Unlock PlanningScene
+      if(path_valid) robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(time_parameterize_path(states,
+                                                                                      planning_component, speed_scale,
+                                                                                      acc_scale));   
     }
     if(factor > joint_threshold_factor_limit_)
     {
@@ -898,6 +900,18 @@ robot_trajectory::RobotTrajectory
 Moveit2Wrapper::time_parameterize_path(std::vector<moveit::core::RobotStatePtr> robot_states, 
                                        std::string planning_component, double speed_scale, double acc_scale)
 {
+  robot_trajectory::RobotTrajectory robot_traj = to_robot_trajectory(robot_states, planning_component);
+
+  // Adding timestamps.
+  trajectory_processing::IterativeSplineParameterization parameterization(true);
+  parameterization.computeTimeStamps(robot_traj, speed_scale, acc_scale);
+  return robot_traj;
+}
+
+
+robot_trajectory::RobotTrajectory Moveit2Wrapper::to_robot_trajectory(std::vector<moveit::core::RobotStatePtr> path, 
+                                                                      std::string planning_component)
+{
   std::vector<std::string> joint_names = planning_components_hash_.at(planning_component).joint_names;
   moveit_msgs::msg::RobotTrajectory robot_traj_msg;
   robot_traj_msg.joint_trajectory.joint_names = joint_names;
@@ -925,10 +939,6 @@ Moveit2Wrapper::time_parameterize_path(std::vector<moveit::core::RobotStatePtr> 
   robot_trajectory::RobotTrajectory robot_traj(moveit_cpp_->getRobotModel(),
     planning_components_hash_.at(planning_component).joint_group.get());
   robot_traj.setRobotTrajectoryMsg(*moveit_cpp_->getCurrentState(), robot_traj_msg);
-
-  // Adding timestamps.
-  trajectory_processing::IterativeSplineParameterization parameterization(true);
-  parameterization.computeTimeStamps(robot_traj, speed_scale, acc_scale);
   return robot_traj;
 }
 

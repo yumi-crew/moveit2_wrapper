@@ -200,7 +200,7 @@ private:
  
   double maximum_planning_time_ = 0.5;
   double cartesian_max_step_ = 0.002;
-  double joint_threshold_factor_ = 2;
+  double joint_threshold_factor_ = 4;
   double joint_threshold_factor_limit_ = 6;
   std::string planning_pipeline_ = "ompl";
 
@@ -232,6 +232,10 @@ private:
   robot_trajectory::RobotTrajectory time_parameterize_path(std::vector<moveit::core::RobotStatePtr> path, 
                                                            std::string planning_component, double speed_scale,
                                                            double acc_scale);
+
+  /* Converts a vector of RobotStates to a RobotTrajectory. */
+  robot_trajectory::RobotTrajectory to_robot_trajectory(std::vector<moveit::core::RobotStatePtr> path, 
+                                                        std::string planning_component);
   
   /* Returns the pose of the given link with the robot in the given RobotState. */
   std::vector<double> find_pose(std::string link_name, robot_state::RobotStatePtr state);
