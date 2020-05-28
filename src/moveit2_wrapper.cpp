@@ -282,18 +282,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
     { // Lock PlanningScene
       planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
       if(collision_checking) path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
-      else
-      {
-        path_valid = true;
-        for(auto x : states)
-        { 
-          if(!scene->isStateFeasible(*x))
-          {
-            path_valid = false;
-            break;
-          }
-        }
-      }
+      else path_valid = true;
     } // Unlock PlanningScene
   }
 
@@ -313,18 +302,7 @@ bool Moveit2Wrapper::cartesian_pose_to_pose_motion(std::string planning_componen
       {  // Lock PlanningScene
         planning_scene_monitor::LockedPlanningSceneRW scene(moveit_cpp_->getPlanningSceneMonitor());
         if(collision_checking)  path_valid = scene->isPathValid(*robot_traj.get(), planning_component);
-        else
-        {
-          path_valid = true;
-          for(auto x : states)
-          { 
-            if(!scene->isStateFeasible(*x))
-            {
-              path_valid = false;
-              break;
-            }
-          }
-        }
+        else path_valid = true;
       }  // Unlock PlanningScene
     }
     if(factor > joint_threshold_factor_limit_)
