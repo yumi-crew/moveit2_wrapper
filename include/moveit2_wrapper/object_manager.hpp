@@ -36,7 +36,7 @@ class ObjectManager
 public:
   ObjectManager(moveit::planning_interface::MoveItCppPtr moveit_cpp);
 
-  /* Fills the hash table of registered objects. */ 
+  /* Loads the .stl 3D models found in the object_files package as meshes and registers these in the hash tables. */ 
   bool init();
 
   /* Adds registered objects with known pose to the planning scene. */
@@ -124,9 +124,6 @@ private:
 
   void update_planning_scene();
 
-  /* Loads the .stl 3D models found in the object_files package as meshes and registers these in the hash tables. */
-  void populate_hash_tables();
-
   /* Iterates through the registered objects, finds the objects in the scene and updates the last_observed_pose field.*/
   void update_pose_of_all_objects();
 
@@ -144,7 +141,7 @@ private:
 
   /* Loads the .stl-models in the directiory-path provided and registers them as meshes in the objects_hash_
      registered_meshs_ hash tables. */
-  void register_models(std::string path_to_models_dir);
+  void load_and_register_models(std::string path_to_models_dir);
 };
 
 } // namespace moveit2_wrapper

@@ -26,7 +26,9 @@ ObjectManager::ObjectManager(moveit::planning_interface::MoveItCppPtr moveit_cpp
 bool ObjectManager::init()
 {
   reference_frame_ = moveit_cpp_->getRobotModel()->getRootLinkName();
-  populate_hash_tables();
+  std::string package_share_directory = ament_index_cpp::get_package_share_directory(stl_package);
+  std::string path = package_share_directory + "/stl/";
+  load_and_register_models(path);
   return true;
 }
 
@@ -146,15 +148,7 @@ void ObjectManager::move_collision_object(std::string object_id, std::vector<dou
 }
 
 
-void ObjectManager::populate_hash_tables()
-{
-  std::string package_share_directory = ament_index_cpp::get_package_share_directory(stl_package);
-  std::string path = package_share_directory + "/stl/";
-  register_models(path);
-}
-
-
-void ObjectManager::register_models(std::string path_to_models_dir)
+void ObjectManager::load_and_register_models(std::string path_to_models_dir)
 {
   std::string extension;
   std::string model_path;
