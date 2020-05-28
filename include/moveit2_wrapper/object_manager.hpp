@@ -80,6 +80,7 @@ private:
   moveit::planning_interface::MoveItCppPtr moveit_cpp_;
   std::string reference_frame_;
   std::string stl_location = "object_files/stl/";
+  std::string stl_package = "object_files";
 
   enum ObjectType
   {

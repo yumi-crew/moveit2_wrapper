@@ -61,7 +61,7 @@ bool Moveit2Wrapper::state_to_state_motion(std::string planning_component, std::
 
   // Set planning parameters.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
-  plannning_params.planning_attempts = retries;
+  plannning_params.planning_attempts = 0;
   plannning_params.planning_time = maximum_planning_time_;
   plannning_params.max_velocity_scaling_factor = speed_scale;
   plannning_params.max_acceleration_scaling_factor = acc_scale;
@@ -150,7 +150,7 @@ bool Moveit2Wrapper::pose_to_pose_motion(std::string planning_component, std::st
 
   // Set planning parameteres.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
-  plannning_params.planning_attempts = retries;
+  plannning_params.planning_attempts = 0;
   plannning_params.planning_time = maximum_planning_time_;
   plannning_params.max_velocity_scaling_factor = speed_scale;
   plannning_params.max_acceleration_scaling_factor = acc_scale;
@@ -1047,6 +1047,7 @@ bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,
 
   // Set planning parameteres.
   moveit::planning_interface::PlanningComponent::PlanRequestParameters plannning_params;
+  plannning_params.planning_attempts = 0;
   plannning_params.planning_time = maximum_planning_time_;
   plannning_params.planning_pipeline = planning_pipeline_;
 

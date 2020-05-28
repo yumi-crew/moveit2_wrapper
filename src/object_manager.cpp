@@ -148,23 +148,8 @@ void ObjectManager::move_collision_object(std::string object_id, std::vector<dou
 
 void ObjectManager::populate_hash_tables()
 {
-  // Testing dirname
-  char result[100];
-  ssize_t count = readlink("/proc/self/exe", result, 100);
-  const char *path;
-  if (count != -1) 
-  {
-    path = dirname(result);
-  }
-  sd::cout << "\n\n\n dirname: " << path << std::cout;
-
-  //Testing ament_index package share path
-  std::string package_share_directory = ament_index_cpp::get_package_share_directory("my_package_name");
-  std::cout << "\n\n\n package shared directory : " << package_share_directory << std::endl;
-
-  char *buf = getlogin();
-  std::string u_name = buf;
-  std::string path = "/home/" + u_name + "/abb_ws/src/object_files/stl/";
+  std::string package_share_directory = ament_index_cpp::get_package_share_directory(stl_package);
+  std::string path = package_share_directory + "/stl/";
   register_models(path);
 }
 
