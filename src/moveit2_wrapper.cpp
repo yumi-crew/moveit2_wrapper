@@ -917,7 +917,7 @@ robot_trajectory::RobotTrajectory Moveit2Wrapper::to_robot_trajectory(std::vecto
   robot_traj_msg.joint_trajectory.joint_names = joint_names;
 
   // Create trajectory lacking time stamps.
-  for(auto robot_state : robot_states)
+  for(auto robot_state : path)
   {
     trajectory_msgs::msg::JointTrajectoryPoint traj_point;
     for(auto joint : joint_names)
