@@ -595,21 +595,6 @@ void Moveit2Wrapper::construct_planning_scene()
   col_obj3.primitive_poses.push_back(pallet_pose);
   col_obj3.operation = col_obj3.ADD;
 
-  // Adding "camera" - box representing the zivid camera.
-  moveit_msgs::msg::CollisionObject col_obj4;
-  col_obj4.header.frame_id = "yumi_base_link"; 
-  col_obj4.id = "camera";
-  shape_msgs::msg::SolidPrimitive camera;
-  camera.type = camera.BOX;
-  camera.dimensions = { 0.40, 0.30, 0.20 };
-  geometry_msgs::msg::Pose camera_pose;
-  camera_pose.position.x = 0.05;
-  camera_pose.position.y = 0.0;
-  camera_pose.position.z = 0.75;
-  col_obj4.primitives.push_back(camera);
-  col_obj4.primitive_poses.push_back(camera_pose);
-  col_obj4.operation = col_obj4.ADD;
-
   // Adding "table" - box representing the table to pick from.
   moveit_msgs::msg::CollisionObject col_obj5;
   col_obj5.header.frame_id = "yumi_base_link"; 
@@ -631,7 +616,6 @@ void Moveit2Wrapper::construct_planning_scene()
     scene->processCollisionObjectMsg(col_obj);
     scene->processCollisionObjectMsg(col_obj2);
     scene->processCollisionObjectMsg(col_obj3);
-    scene->processCollisionObjectMsg(col_obj4);
     scene->processCollisionObjectMsg(col_obj5);
   }  // Unlock PlanningScene 
 }
@@ -1040,7 +1024,7 @@ bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,
   plannning_params.planning_pipeline = planning_pipeline_;
 
   // Find random plan. If able to plan, the pose is valid.
-  int retries_allowed = 1;
+  int retries_allowed = 3;
   int retries_left = retries_allowed;
   auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
   while(!planned_solution)
