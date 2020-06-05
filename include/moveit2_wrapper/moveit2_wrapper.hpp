@@ -194,9 +194,9 @@ private:
   std::unordered_map<std::string, double> joint_states_hash_;
   
   // Used for timing purposes
-  double allowed_pos_error_ = 0.004; // 2 mm
-  double allowed_or_errror_ = 0.030; // summed quaternion error
-  double allowed_state_error_ = 0.04; // summed joint state error
+  double allowed_pos_error_ = 0.002; // 2 mm
+  double allowed_or_errror_ = 0.015; // summed quaternion error
+  double allowed_state_error_ = 0.02; // summed joint state error
  
   double maximum_planning_time_ = 0.5;
   double cartesian_max_step_ = 0.002;

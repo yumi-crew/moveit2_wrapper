@@ -1040,7 +1040,7 @@ bool Moveit2Wrapper::pose_valid(std::string planning_component,std::string link,
   plannning_params.planning_pipeline = planning_pipeline_;
 
   // Find random plan. If able to plan, the pose is valid.
-  int retries_allowed = 3;
+  int retries_allowed = 2;
   int retries_left = retries_allowed;
   auto planned_solution = planning_components_hash_.at(planning_component).planning_component->plan(plannning_params);
   while(!planned_solution)
