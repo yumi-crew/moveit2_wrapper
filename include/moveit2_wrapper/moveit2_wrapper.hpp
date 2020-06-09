@@ -201,7 +201,7 @@ private:
   double maximum_planning_time_ = 0.5;
   double cartesian_max_step_ = 0.002;
   double joint_threshold_factor_ = 4;
-  double joint_threshold_factor_limit_ = 6;
+  double joint_threshold_factor_limit_ = 4;
   std::string planning_pipeline_ = "ompl";
 
   void populate_hash_tables();
