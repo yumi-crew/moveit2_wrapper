@@ -5,6 +5,7 @@
   <description>Wrapper class for the moveit2 moveit_cpp API</description>
 
   <author email="mariunil@stud.ntnu.no">Marius Nilsen</author>
+  <author email="markus@stud.ntnu.no">Markus Bjønnes</author>
   <maintainer email="mariunil@stud.ntnu.no">Marius Nilsen</maintainer>
   <license>Apache License 2.0</license>
 
